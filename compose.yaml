@@ -1,0 +1,9 @@
+services:
+  hdx-scraper-cod-ab:
+    build: .
+    env_file: .env
+    volumes:
+      - ~/.hdx_configuration.yaml:/root/.hdx_configuration.yaml
+      - ~/.useragents.yaml:/root/.useragents.yaml
+      - ./src:/srv/src
+      - ./saved_data:/srv/saved_data
