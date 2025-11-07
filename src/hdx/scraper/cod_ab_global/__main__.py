@@ -6,16 +6,13 @@ from hdx.facades.infer_arguments import facade
 from hdx.utilities.path import wheretostart_tempdir_batch
 from tqdm import tqdm
 
-from .config import ARCGIS_METADATA_URL, RUN_STAGE
+from .check_lists import check_lists
+from .config import RUN_CHECK, RUN_DOWNLOAD, RUN_PCODE
 from .create.em import main as create_em
 from .dataset import generate_dataset
-from .download.ab import main as download_ab
-from .download.em import main as download_em
-from .download.meta import cleanup_metadata
+from .download.boundaries import main as download_boundaries
 from .download.meta import main as download_meta
-from .merge.ab import main as merge_ab
-from .merge.em import main as merge_em
-from .utils import generate_token, get_iso3_list
+from .utils import generate_token
 
 logger = logging.getLogger(__name__)
 cwd = Path(__file__).parent
@@ -48,14 +45,6 @@ def create_cod_em(data_dir: Path, iso3_list: list[str]) -> None:
         create_em(data_dir, iso3)
 
 
-def download_cod_em(data_dir: Path, token: str, iso3_list: list[str]) -> None:
-    """Download all COD-AB datasets from ArcGIS Server."""
-    pbar = tqdm(iso3_list)
-    for iso3 in pbar:
-        pbar.set_postfix_str(iso3)
-        download_em(data_dir, token, iso3)
-
-
 def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, FBT002
     """Generate datasets and create them in HDX."""
     Configuration.read()
@@ -64,18 +53,13 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
         data_dir = Path(_SAVED_DATA_DIR if save or use_saved else temp_dir)
         data_dir.mkdir(parents=True, exist_ok=True)
         token = generate_token()
-        download_meta(data_dir, ARCGIS_METADATA_URL, token)
-        return
-        iso3_list = get_iso3_list(token)
-        if RUN_STAGE == 1:
-            download_cod_em(data_dir, token, iso3_list)
-        if RUN_STAGE == 2:  # noqa: PLR2004
-            create_cod_em(data_dir, iso3_list)
-            merge_em(data_dir)
-        if RUN_STAGE == 3:  # noqa: PLR2004
-            download_ab(data_dir, token)
-            merge_ab(data_dir)
-        cleanup_metadata(data_dir)
+        if RUN_DOWNLOAD:
+            download_meta(data_dir, token)
+            download_boundaries(data_dir, token)
+        if RUN_CHECK:
+            check_lists(data_dir)
+        if RUN_PCODE:
+            pass
 
 
 if __name__ == "__main__":

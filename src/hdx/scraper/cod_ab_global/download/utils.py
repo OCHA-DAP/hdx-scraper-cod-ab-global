@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from ..config import ATTEMPT, WAIT
+from .refactor_boundaries import refactor
 
 OBJECTID = "esriFieldTypeOID"
 
@@ -47,11 +48,20 @@ def download_feature(
     output_file.parent.mkdir(parents=True, exist_ok=True)
     run(
         [
-            "ogr2ogr",
-            *["-nlt", "PROMOTE_TO_MULTI"],
-            *["-lco", "COMPRESSION=ZSTD"],
-            *["-mapFieldType", "DateTime=Date"],
-            *[output_file, "ESRIJSON:" + query_url],
+            *["gdal", "vector", "pipeline", "!"],
+            *["read", "ESRIJSON:" + query_url, "!"],
+            *[
+                "set-field-type",
+                "--src-field-type=DateTime",
+                "--dst-field-type=Date",
+                "!",
+            ],
+            *["write", output_file],
+            "--overwrite",
+            "--quiet",
+            "--lco=COMPRESSION_LEVEL=15",
+            "--lco=COMPRESSION=ZSTD",
         ],
         check=False,
     )
+    refactor(output_file)
