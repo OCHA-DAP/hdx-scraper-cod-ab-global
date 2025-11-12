@@ -9,9 +9,11 @@ def check_lists(data_dir: Path) -> None:
     metadata_set = set(
         "cod_ab_" + df["country_iso3"].str.lower() + "_" + df["version"],
     )
-    boundary_set = {x.name for x in sorted((data_dir / "boundaries").glob("cod_ab_*"))}
-    missing_metadata = boundary_set.difference(metadata_set)
-    missing_boundaries = metadata_set.difference(boundary_set)
+    boundary_set = {
+        x.name for x in sorted((data_dir / "country" / "original").glob("cod_ab_*"))
+    }
+    missing_metadata = sorted(boundary_set.difference(metadata_set))
+    missing_boundaries = sorted(metadata_set.difference(boundary_set))
     if missing_metadata and missing_boundaries:
         err_msg = f"Missing metadata: {missing_metadata}, "
         "Missing boundaries: {missing_boundaries}"

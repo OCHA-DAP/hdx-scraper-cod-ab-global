@@ -3,7 +3,7 @@ from subprocess import run
 
 from geopandas import read_parquet
 
-from ..utils import to_parquet
+from .utils import to_parquet
 
 
 def main(data_dir: Path) -> None:

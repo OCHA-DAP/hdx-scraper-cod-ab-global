@@ -73,7 +73,17 @@ def refactor(output_file: Path) -> None:
     df[count_columns] = df[count_columns].astype("Int32")
     df = df[df["version"] != ""]
     df = df[columns].sort_values(by=["country_iso3", "version"])
-    df.to_parquet(output_file, compression="zstd", compression_level=15, index=False)
-    output_file = output_file.with_stem(output_file.stem + "_latest")
+    df.to_parquet(
+        output_file.with_stem(output_file.stem + "_all"),
+        compression="zstd",
+        compression_level=15,
+        index=False,
+    )
     df = df.drop_duplicates(subset=["country_iso3"], keep="last")
-    df.to_parquet(output_file, compression="zstd", compression_level=15, index=False)
+    df.to_parquet(
+        output_file.with_stem(output_file.stem + "_latest"),
+        compression="zstd",
+        compression_level=15,
+        index=False,
+    )
+    output_file.unlink()

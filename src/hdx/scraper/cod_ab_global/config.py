@@ -44,16 +44,21 @@ TIMEOUT = int(getenv("TIMEOUT", "60"))
 TIMEOUT_DOWNLOAD = int(getenv("TIMEOUT_DOWNLOAD", "600"))
 EXPIRATION = int(getenv("EXPIRATION", "1440"))  # minutes (1 day)
 
-RUN_DOWNLOAD = is_bool(getenv("RUN_DOWNLOAD", "NO"))
-RUN_CHECK = is_bool(getenv("RUN_CHECK", "NO"))
-RUN_PCODE = is_bool(getenv("RUN_PCODE", "NO"))
+RUN_DOWNLOAD = is_bool(getenv("RUN_DOWNLOAD", "YES"))
+RUN_CHECK = is_bool(getenv("RUN_CHECK", "YES"))
+RUN_ORIGINAL = is_bool(getenv("RUN_ORIGINAL", "YES"))
+RUN_EXTENDED_PRE = is_bool(getenv("RUN_EXTENDED_PRE", "YES"))
+RUN_EXTENDED_POST = is_bool(getenv("RUN_EXTENDED_POST", "YES"))
+RUN_ALIGNED = is_bool(getenv("RUN_ALIGNED", "YES"))
+RUN_ORIGINAL = is_bool(getenv("RUN_ORIGINAL", "YES"))
+RUN_DATASETS = is_bool(getenv("RUN_DATASETS", "YES"))
 
 ISO_3_LEN = 3
 iso3_include = [
-    x for x in getenv("ISO3_INCLUDE", "").upper().split(",") if len(x) == ISO_3_LEN
+    x.upper() for x in getenv("ISO3_INCLUDE", "").split(",") if len(x) == ISO_3_LEN
 ]
 iso3_exclude = [
-    x for x in getenv("ISO3_EXCLUDE", "").upper().split(",") if len(x) == ISO_3_LEN
+    x.upper() for x in getenv("ISO3_EXCLUDE", "").split(",") if len(x) == ISO_3_LEN
 ]
 
 where_filter = {

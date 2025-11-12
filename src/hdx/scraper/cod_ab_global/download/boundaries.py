@@ -7,6 +7,8 @@ from ..config import (
     ARCGIS_LAYER_REGEX,
     ARCGIS_SERVICE_URL,
     ARCGIS_SERVICE_VERSIONED_REGEX,
+    iso3_exclude,
+    iso3_include,
 )
 from ..utils import client_get
 from .utils import download_feature
@@ -36,8 +38,14 @@ def main(data_dir: Path, token: str) -> None:
     for service in pbar:
         pbar.set_postfix_str(service["name"].split("/")[-1])
         service_name = service["name"].split("/")[-1]
-        output_dir = data_dir / "boundaries" / service_name.replace("_v_", "_v")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        service_url = f"{ARCGIS_SERVICE_URL}/{service_name}/FeatureServer"
-        layers = client_get(service_url, params).json()["layers"]
-        download_layers(output_dir, service_url, params, layers)
+        iso3 = service_name.split("_")[2].upper()
+        if (not iso3_include or iso3 in iso3_include) and (
+            not iso3_exclude or iso3 not in iso3_exclude
+        ):
+            output_dir = (
+                data_dir / "country" / "original" / service_name.replace("_v_", "_v")
+            )
+            output_dir.mkdir(parents=True, exist_ok=True)
+            service_url = f"{ARCGIS_SERVICE_URL}/{service_name}/FeatureServer"
+            layers = client_get(service_url, params).json()["layers"]
+            download_layers(output_dir, service_url, params, layers)

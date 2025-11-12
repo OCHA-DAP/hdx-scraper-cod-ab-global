@@ -1,8 +1,10 @@
+data_update_frequency: 7
+dataset_source: HDX
 license_id: cc-by-igo
+maintainer: maxmalynowsky
+methodology_other: Taken from latest layers available on the UN OCHA ArcGIS server.
 methodology: Other
-methodology_other: Prepared by UN-OCHA
+owner_org: hdx
 package_creator: HDX Data Systems Team
 private: False
-maintainer: maxmalynowsky
-data_update_frequency: 365
 subnational: "1"

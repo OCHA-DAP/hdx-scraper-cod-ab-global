@@ -4,45 +4,30 @@ from pathlib import Path
 from hdx.api.configuration import Configuration
 from hdx.facades.infer_arguments import facade
 from hdx.utilities.path import wheretostart_tempdir_batch
-from tqdm import tqdm
 
 from .check_lists import check_lists
-from .config import RUN_CHECK, RUN_DOWNLOAD, RUN_PCODE
-from .create.em import main as create_em
-from .dataset import generate_dataset
+from .config import (
+    RUN_CHECK,
+    RUN_DATASETS,
+    RUN_DOWNLOAD,
+    RUN_EXTENDED_PRE,
+    RUN_ORIGINAL,
+)
+from .dataset.boundaries import create_boundaries_dataset
+from .dataset.pcodes import create_pcodes_dataset
 from .download.boundaries import main as download_boundaries
 from .download.meta import main as download_meta
+from .extended.preprocess import preprocess_extended
+from .original.boundaries import create_original_boundaries
+from .original.pcodes import create_pcodes
 from .utils import generate_token
 
 logger = logging.getLogger(__name__)
 cwd = Path(__file__).parent
 
-_USER_AGENT_LOOKUP = "hdx-scraper-cod-em"
+_USER_AGENT_LOOKUP = "hdx-scraper-cod-global"
 _SAVED_DATA_DIR = (cwd / "../../../../saved_data").resolve()
-_UPDATED_BY_SCRIPT = "HDX Scraper: COD-Global"
-
-
-def create_global_data(info: dict) -> None:
-    """Create a dataset for the world."""
-    dataset = generate_dataset()
-    if dataset:
-        dataset.update_from_yaml(path=str(cwd / "config/hdx_dataset_static.yaml"))
-        if True:
-            dataset.create_in_hdx(
-                remove_additional_resources=True,
-                match_resource_order=False,
-                hxl_update=False,
-                updated_by_script=_UPDATED_BY_SCRIPT,
-                batch=info["batch"],
-            )
-
-
-def create_cod_em(data_dir: Path, iso3_list: list[str]) -> None:
-    """Create a dataset for each country."""
-    pbar = tqdm(iso3_list)
-    for iso3 in pbar:
-        pbar.set_postfix_str(iso3)
-        create_em(data_dir, iso3)
+_UPDATED_BY_SCRIPT = "HDX Scraper: COD-AB Global"
 
 
 def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, FBT002
@@ -52,14 +37,20 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
         temp_dir = info["folder"]
         data_dir = Path(_SAVED_DATA_DIR if save or use_saved else temp_dir)
         data_dir.mkdir(parents=True, exist_ok=True)
-        token = generate_token()
         if RUN_DOWNLOAD:
+            token = generate_token()
             download_meta(data_dir, token)
             download_boundaries(data_dir, token)
         if RUN_CHECK:
             check_lists(data_dir)
-        if RUN_PCODE:
-            pass
+        if RUN_ORIGINAL:
+            create_original_boundaries(data_dir)
+            create_pcodes(data_dir)
+        if RUN_EXTENDED_PRE:
+            preprocess_extended(data_dir)
+        if RUN_DATASETS:
+            create_pcodes_dataset(data_dir, info, _UPDATED_BY_SCRIPT)
+            create_boundaries_dataset(data_dir, info, _UPDATED_BY_SCRIPT)
 
 
 if __name__ == "__main__":
