@@ -5,7 +5,7 @@ from pandas import read_parquet
 
 def check_lists(data_dir: Path) -> None:
     """Check metadata list against file path list."""
-    df = read_parquet(data_dir / "metadata.parquet")
+    df = read_parquet(data_dir / "metadata_all.parquet")
     metadata_set = set(
         "cod_ab_" + df["country_iso3"].str.lower() + "_" + df["version"],
     )

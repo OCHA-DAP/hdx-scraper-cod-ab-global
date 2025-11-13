@@ -6,13 +6,7 @@ from hdx.facades.infer_arguments import facade
 from hdx.utilities.path import wheretostart_tempdir_batch
 
 from .check_lists import check_lists
-from .config import (
-    RUN_CHECK,
-    RUN_DATASETS,
-    RUN_DOWNLOAD,
-    RUN_EXTENDED_PRE,
-    RUN_ORIGINAL,
-)
+from .config import run_exclude, run_include
 from .dataset.boundaries import create_boundaries_dataset
 from .dataset.pcodes import create_pcodes_dataset
 from .download.boundaries import main as download_boundaries
@@ -30,6 +24,13 @@ _SAVED_DATA_DIR = (cwd / "../../../../saved_data").resolve()
 _UPDATED_BY_SCRIPT = "HDX Scraper: COD-AB Global"
 
 
+def can_run(run: str) -> bool:
+    """Determine whether step can be run."""
+    return (not run_include or run in run_include) and (
+        not run_exclude or run not in run_exclude
+    )
+
+
 def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, FBT002
     """Generate datasets and create them in HDX."""
     Configuration.read()
@@ -37,18 +38,18 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
         temp_dir = info["folder"]
         data_dir = Path(_SAVED_DATA_DIR if save or use_saved else temp_dir)
         data_dir.mkdir(parents=True, exist_ok=True)
-        if RUN_DOWNLOAD:
+        if can_run("DOWNLOAD"):
             token = generate_token()
             download_meta(data_dir, token)
             download_boundaries(data_dir, token)
-        if RUN_CHECK:
+        if can_run("CHECK"):
             check_lists(data_dir)
-        if RUN_ORIGINAL:
+        if can_run("ORIGINAL"):
             create_original_boundaries(data_dir)
             create_pcodes(data_dir)
-        if RUN_EXTENDED_PRE:
+        if can_run("EXTENDED_PRE"):
             preprocess_extended(data_dir)
-        if RUN_DATASETS:
+        if can_run("DATASETS"):
             create_pcodes_dataset(data_dir, info, _UPDATED_BY_SCRIPT)
             create_boundaries_dataset(data_dir, info, _UPDATED_BY_SCRIPT)
 

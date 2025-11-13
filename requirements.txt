@@ -55,7 +55,7 @@ h11==0.16.0
     # via httpcore
 h2==4.3.0
     # via httpx
-hdx-python-api==6.5.2
+hdx-python-api==6.5.3
     # via hdx-scraper-cod-ab-global
 hdx-python-country==3.9.8
     # via

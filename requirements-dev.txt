@@ -65,7 +65,7 @@ h11==0.16.0
     # via httpcore
 h2==4.3.0
     # via httpx
-hdx-python-api==6.5.2
+hdx-python-api==6.5.3
     # via hdx-scraper-cod-ab-global
 hdx-python-country==3.9.8
     # via
@@ -195,7 +195,7 @@ pyphonetics==0.5.3
     # via hdx-python-utilities
 pyproj==3.7.2
     # via geopandas
-pytest==9.0.0
+pytest==9.0.1
     # via pytest-cov
 pytest-cov==7.0.0
 python-dateutil==2.9.0.post0
