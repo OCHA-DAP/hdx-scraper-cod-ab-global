@@ -73,7 +73,7 @@ def create_pcodes_dataset(data_dir: Path, info: dict, script_name: str) -> None:
     dataset = add_resources(data_dir, dataset)
     dataset.create_in_hdx(
         remove_additional_resources=True,
-        match_resource_order=False,
+        match_resource_order=True,
         hxl_update=False,
         updated_by_script=script_name,
         batch=info["batch"],

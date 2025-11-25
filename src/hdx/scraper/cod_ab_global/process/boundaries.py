@@ -48,33 +48,34 @@ def gdal_concat_multi(input_paths: list[Path], output_path: Path) -> None:
     rmtree(output_path)
 
 
-def create_all_boundaries(data_dir: Path) -> None:
-    """Generate edge-matched boundaries for all datasets."""
-    output_dir = data_dir / "global" / "original" / "all"
+def create_all_boundaries(data_dir: Path, stage: str, lvl_max: int) -> None:
+    """Generate global boundaries for all datasets."""
+    output_dir = data_dir / "global" / stage / "all"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_paths = [output_dir / f"admin{level}.parquet" for level in range(6)]
-    output_path = output_dir / "global_admin_boundaries_original_all.gdb"
-    for level in range(6):
+    output_paths = [output_dir / f"admin{level}.parquet" for level in range(lvl_max)]
+    output_path = output_dir / f"global_admin_boundaries_{stage}_all.gdb"
+    for level in range(lvl_max):
         input_paths = sorted(
-            (data_dir / "country" / "original").rglob(f"*_admin{level}.parquet"),
+            (data_dir / "country" / stage).rglob(f"*_admin{level}.parquet"),
         )
         gdal_concat_single(input_paths, output_paths[level])
     gdal_concat_multi(output_paths, output_path)
 
 
-def create_latest_boundaries(data_dir: Path) -> None:
-    """Generate edge-matched boundaries for latest datasets."""
-    output_dir = data_dir / "global" / "original" / "latest"
+def create_latest_boundaries(data_dir: Path, stage: str, lvl_max: int) -> None:
+    """Generate global boundaries for latest datasets."""
+    output_dir = data_dir / "global" / stage / "latest"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_paths = [output_dir / f"admin{level}.parquet" for level in range(6)]
-    output_path = output_dir / "global_admin_boundaries_original_latest.gdb"
-    for level in range(6):
-        input_paths = get_latest_layers(data_dir / "country" / "original", level)
+    output_paths = [output_dir / f"admin{level}.parquet" for level in range(lvl_max)]
+    output_path = output_dir / f"global_admin_boundaries_{stage}_latest.gdb"
+    for level in range(lvl_max):
+        input_paths = get_latest_layers(data_dir / "country" / stage, level)
         gdal_concat_single(input_paths, output_paths[level])
     gdal_concat_multi(output_paths, output_path)
 
 
-def create_original_boundaries(data_dir: Path) -> None:
+def create_boundaries(data_dir: Path, stage: str) -> None:
     """Generate datasets for HDX."""
-    create_all_boundaries(data_dir)
-    create_latest_boundaries(data_dir)
+    lvl_max = 6 if stage == "original" else 5
+    create_latest_boundaries(data_dir, stage, lvl_max)
+    create_all_boundaries(data_dir, stage, lvl_max)
