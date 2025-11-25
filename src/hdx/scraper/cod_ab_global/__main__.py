@@ -48,8 +48,8 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: C901, FBT
                 download_metadata(data_dir, token)
             if can_run("DOWNLOAD") or can_run("DOWNLOAD_BOUNDARIES"):
                 download_boundaries(data_dir, token)
-        if can_run("CHECK"):
-            check_lists(data_dir)
+            if can_run("DOWNLOAD") or can_run("DOWNLOAD_CHECK"):
+                check_lists(data_dir)
         if can_run("ORIGINAL") or can_run("ORIGINAL_BOUNDARIES"):
             create_boundaries(data_dir, "original")
         if can_run("ORIGINAL") or can_run("ORIGINAL_PCODES"):
