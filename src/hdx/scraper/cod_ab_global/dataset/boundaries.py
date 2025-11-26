@@ -9,7 +9,20 @@ cwd = Path(__file__).parent
 dataset_info = {
     "name": "cod-ab-global",
     "title": "OCHA Global Subnational Administrative Boundaries",
-    "notes": "Geodatabase containing subnational boundaries.",
+    "methodology_other": (
+        "Data taken from the latest administrative boundary layers available on the "
+        "UN OCHA FIS ArcGIS server (gis.unocha.org). Edge-extending of original "
+        "geometries done using an algorithm (github.com/fieldmaps/edge-extender). "
+        "Edge-matching done using UN Geodata 1:1M international boundaries "
+        "(geoservices.un.org)."
+    ),
+    "caveats": (
+        "In the extended and edge-matched resources, lower levels are filled in with "
+        "higher ones if they don't exist. Example: Admin 2 is used to fill in Admin 3 "
+        "and 4 if they don't exist. Also, only layers with full coverage are used for "
+        "these two resources. Example: if Admin 3 only covers part of a location, "
+        "Admin 2 is used instead."
+    ),
 }
 
 resources = [
@@ -31,29 +44,32 @@ resources = [
     },
 ]
 
-resources_all = [
-    {
-        "name": "global_admin_boundaries_matched_all.gdb.zip",
-        "description": (
-            "Edge-matched geometry (no gaps or overlaps), "
-            "all versions (current and historic)."
-        ),
-    },
-    {
-        "name": "global_admin_boundaries_original_all.gdb.zip",
-        "description": (
-            "Original geometry (with gaps and overlaps), "
-            "all versions (current and historic)."
-        ),
-    },
-    {
-        "name": "global_admin_boundaries_extended_all.gdb.zip",
-        "description": (
-            "Extended geometry (pre-edge-matching), "
-            "all versions (current and historic)."
-        ),
-    },
-]
+
+def get_notes(admin_count: int) -> str:
+    """Get notes for a dataset."""
+    return (
+        "Global administrative level 0-4 boundaries (COD-AB) dataset for "
+        f"{admin_count} countries / territories, latest versions."
+        "  \n  \n"
+        "This is an aggregation of "
+        "[subnational administrative boundaries](https://data.humdata.org/dataset/?dataseries_name=COD+-+Subnational+Administrative+Boundaries&cod_level=cod-enhanced)"
+        " available in 3 variations:"
+        "  \n  \n"
+        "**Edge-Matched**: Subnational boundaries are aligned to fit UN Geodata 1:1M "
+        "international boundaries. This process results in simplification at the "
+        "international border, but gaps and overlaps are eliminated. The internal "
+        "resolution of each subnational boundary layer is not modified by this "
+        "process. Recommended to use for most use cases."
+        "  \n  \n"
+        "**Original**: Subnational boundaries are unmodified from their original "
+        "source. There will be gaps and overlaps at the international border. "
+        "Recomended if maintaining the integrity of the initial source is important."
+        "  \n  \n"
+        "**Extended**: A specialty output to help those performing their own "
+        "edge-matching when not using UN Geodata 1:1M international boundaries."
+        "  \n  \n"
+        "Metadata about sources used is also available as a table."
+    )
 
 
 def initialize_dataset(data_dir: Path) -> Dataset:
@@ -62,8 +78,10 @@ def initialize_dataset(data_dir: Path) -> Dataset:
         data_dir / "metadata/global_admin_boundaries_metadata_latest.parquet",
         columns=["date_valid_on", "date_reviewed"],
     )
-    start_date = df["date_valid_on"].min().isoformat()
+    start_date = df[df["date_valid_on"].notna()]["date_valid_on"].min().isoformat()
     end_date = df[df["date_reviewed"].notna()]["date_reviewed"].max().isoformat()
+    layer_count = len(df)
+    dataset_info["notes"] = get_notes(layer_count)
     dataset = Dataset(dataset_info)
     dataset.update_from_yaml(path=str(cwd / "../config/hdx_dataset_static.yaml"))
     dataset.add_other_location("world")
@@ -86,7 +104,7 @@ def add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Data
     return dataset
 
 
-def add_metadata(data_dir: Path, dataset: Dataset) -> Dataset:
+def add_metadata_resource(data_dir: Path, dataset: Dataset) -> Dataset:
     """Add resources to a dataset."""
     resource_data = {
         "name": "global_admin_boundaries_metadata_latest.csv",
@@ -103,7 +121,7 @@ def dataset_create_in_hdx(dataset: Dataset, info: dict, script_name: str) -> Non
     """Create a dataset in HDX."""
     dataset.create_in_hdx(
         remove_additional_resources=False,
-        match_resource_order=True,
+        match_resource_order=False,
         hxl_update=False,
         updated_by_script=script_name,
         batch=info["batch"],
@@ -116,5 +134,5 @@ def create_boundaries_dataset(data_dir: Path, info: dict, script_name: str) -> N
     for resource in resources:
         dataset = add_resources(data_dir, dataset, resource)
         dataset_create_in_hdx(dataset, info, script_name)
-    dataset = add_metadata(data_dir, dataset)
+    dataset = add_metadata_resource(data_dir, dataset)
     dataset_create_in_hdx(dataset, info, script_name)

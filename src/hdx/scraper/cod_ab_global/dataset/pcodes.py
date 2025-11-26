@@ -9,11 +9,15 @@ cwd = Path(__file__).parent
 
 dataset_info = {
     "name": "global-pcodes",
-    "title": "Global P-Code List",
+    "title": "Global P-code List",
     "notes": (
         "CSV containing subnational p-codes, their corresponding administrative names, "
         "parent p-codes, and reference dates for the world (where available). "
         "Latin names are used where available."
+    ),
+    "methodology_other": (
+        "P-codes taken from the latest administrative boundary layers available on the "
+        "OCHA FIS ArcGIS server (gis.unocha.org)."
     ),
 }
 
