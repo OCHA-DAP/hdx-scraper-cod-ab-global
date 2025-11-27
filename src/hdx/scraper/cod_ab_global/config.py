@@ -44,17 +44,25 @@ TIMEOUT = int(getenv("TIMEOUT", "60"))
 TIMEOUT_DOWNLOAD = int(getenv("TIMEOUT_DOWNLOAD", "600"))
 EXPIRATION = int(getenv("EXPIRATION", "1440"))  # minutes (1 day)
 
-iso3_include = [x.strip().upper() for x in getenv("ISO3_INCLUDE", "").split(",")]
-iso3_exclude = [x.strip().upper() for x in getenv("ISO3_EXCLUDE", "").split(",")]
+iso3_include = [
+    x.strip() for x in getenv("ISO3_INCLUDE", "").upper().split(",") if x.strip()
+]
+iso3_exclude = [
+    x.strip() for x in getenv("ISO3_EXCLUDE", "").upper().split(",") if x.strip()
+]
 
-run_include = [x.strip().upper() for x in getenv("RUN_INCLUDE", "").split(",")]
-run_exclude = [x.strip().upper() for x in getenv("RUN_EXCLUDE", "").split(",")]
+run_include = [
+    x.strip() for x in getenv("RUN_INCLUDE", "").upper().split(",") if x.strip()
+]
+run_exclude = [
+    x.strip() for x in getenv("RUN_EXCLUDE", "").upper().split(",") if x.strip()
+]
 
 where_filter = {
     "LBN": "adm1_pcode <> 'Conflict'",
     "PAK": "adm1_pcode not in ('PK1', 'PK3')",
     "SDN": "adm1_pcode <> 'SD19'",
-    "SSD": "adm1_pcode <> 'SS00'",
+    "SSD": "adm1_pcode <> 'SS00' and adm2_pcode <> 'SS0807'",
 }
 
 bnda_disp = ["xAB"]

@@ -1,10 +1,9 @@
-import logging
 import re
 from pathlib import Path
 from subprocess import run
 
 from httpx import Client, Response
-from pandas import read_csv
+from pandas import DataFrame, read_csv
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from .config import (
@@ -21,7 +20,6 @@ from .config import (
     iso3_include,
 )
 
-logger = logging.getLogger(__name__)
 cwd = Path(__file__).parent
 
 
@@ -41,6 +39,18 @@ def get_admin_level_full(iso3: str) -> int:
     return df[(df["country_iso3"] == iso3) & df["version"].isna()].to_dict(
         "records",
     )[0]["admin_level_full"]
+
+
+def get_columns(admin_level: int) -> list[str]:
+    """Get a list of column names for the given admin level."""
+    columns = []
+    for level in range(admin_level, -1, -1):
+        columns += [f"adm{level}_name"]
+        columns += [f"adm{level}_name1", f"adm{level}_name2", f"adm{level}_name3"]
+        columns += [f"adm{level}_pcode"]
+    columns += ["lang", "lang1", "lang2", "lang3"]
+    columns += ["iso2", "iso3", "version", "valid_on", "valid_to", "adm_origin"]
+    return columns
 
 
 def get_feature_server_url(iso3: str) -> str:
@@ -76,6 +86,33 @@ def to_parquet(output_path: Path) -> None:
         check=False,
     )
     output_path.unlink()
+
+
+def save_metadata(output_file: Path, df: DataFrame) -> None:
+    """Save metadata in with all and latest versions."""
+    df.to_parquet(
+        output_file.with_stem(output_file.stem + "_all"),
+        compression="zstd",
+        compression_level=15,
+        index=False,
+    )
+    df.to_csv(
+        output_file.with_stem(output_file.stem + "_all").with_suffix(".csv"),
+        index=False,
+        encoding="utf-8-sig",
+    )
+    df = df.drop_duplicates(subset=["country_iso3"], keep="last")
+    df.to_parquet(
+        output_file.with_stem(output_file.stem + "_latest"),
+        compression="zstd",
+        compression_level=15,
+        index=False,
+    )
+    df.to_csv(
+        output_file.with_stem(output_file.stem + "_latest").with_suffix(".csv"),
+        index=False,
+        encoding="utf-8-sig",
+    )
 
 
 def get_iso3_list(token: str) -> list[str]:

@@ -9,11 +9,15 @@ cwd = Path(__file__).parent
 
 dataset_info = {
     "name": "global-pcodes",
-    "title": "Global P-Code List",
+    "title": "Global P-code List",
     "notes": (
         "CSV containing subnational p-codes, their corresponding administrative names, "
         "parent p-codes, and reference dates for the world (where available). "
         "Latin names are used where available."
+    ),
+    "methodology_other": (
+        "P-codes taken from the latest administrative boundary layers available on the "
+        "OCHA FIS ArcGIS server (gis.unocha.org)."
     ),
 }
 
@@ -73,7 +77,7 @@ def create_pcodes_dataset(data_dir: Path, info: dict, script_name: str) -> None:
     dataset = add_resources(data_dir, dataset)
     dataset.create_in_hdx(
         remove_additional_resources=True,
-        match_resource_order=False,
+        match_resource_order=True,
         hxl_update=False,
         updated_by_script=script_name,
         batch=info["batch"],

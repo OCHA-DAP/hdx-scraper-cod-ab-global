@@ -34,15 +34,24 @@ def get_adm0_pcode_lenths(data_dir: Path) -> DataFrame:
     return df[["Location", "Country Length"]]
 
 
-def generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df_all: DataFrame) -> None:
+def generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df: DataFrame) -> None:
     """Generate a global p-code length list."""
-    df_lengths = (
-        df_all.groupby(["Location", "Admin Level"])["P-Code"]
-        .apply(
-            lambda x: "|".join([str(i) for i in sorted(x.str.len().unique())]),
+    df = df[
+        df.apply(
+            lambda x: x["Admin Level"] == 1
+            or x["P-Code"].startswith(x["Parent P-Code"]),
+            axis=1,
         )
+    ].copy()
+    df["P-Code Length"] = df.apply(
+        lambda x: len(x["P-Code"]) - len(x["Parent P-Code"]),
+        axis=1,
+    )
+    df_lengths = (
+        df.groupby(["Location", "Admin Level"])["P-Code Length"]
+        .apply(lambda x: "|".join([str(i) for i in sorted(x.unique())]))
         .reset_index()
-        .pivot(index="Location", columns="Admin Level", values="P-Code")
+        .pivot(index="Location", columns="Admin Level", values="P-Code Length")
         .reset_index()
         .rename(
             columns={
@@ -94,7 +103,7 @@ def create_pcodes(data_dir: Path) -> None:
         )
         df["Admin Level"] = level
         df["Name"] = df[name_columns].bfill(axis=1).iloc[:, 0]
-        df["Parent P-Code"] = df[f"adm{level - 1}_pcode"] if level > 1 else df["iso3"]
+        df["Parent P-Code"] = df[f"adm{level - 1}_pcode"]
         rename_columns = {
             "iso3": "Location",
             f"adm{level}_pcode": "P-Code",
@@ -103,6 +112,9 @@ def create_pcodes(data_dir: Path) -> None:
         df = df.rename(columns=rename_columns)
         df = df[data.keys()]
         df = df[df["P-Code"].notna()]
+        df = df[df["P-Code"].str.contains(r"\d")]
+        if not df_all.empty:
+            df = df[df["Parent P-Code"].isin(df_all["P-Code"])]
         df_all = concat([df_all, df]) if not df_all.empty else df
         df_all = (
             df_all.sort_values(by=["Location", "Admin Level", "P-Code", "Name"])
