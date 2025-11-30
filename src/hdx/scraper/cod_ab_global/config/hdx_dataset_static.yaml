@@ -1,8 +1,8 @@
-data_update_frequency: 7
-dataset_source: HDX
+cod_level: cod-enhanced
+data_update_frequency: 30
+dataset_source: Multiple sources aggregated by UN OCHA Field Information Services (FIS)
 license_id: cc-by-igo
 maintainer: maxmalynowsky
-methodology_other: Taken from latest layers available on the UN OCHA ArcGIS server.
 methodology: Other
 owner_org: hdx
 package_creator: HDX Data Systems Team
