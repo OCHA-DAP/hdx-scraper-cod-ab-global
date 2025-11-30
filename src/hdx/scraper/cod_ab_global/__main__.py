@@ -73,6 +73,7 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: C901, FBT
 if __name__ == "__main__":
     facade(
         main,
+        hdx_site="prod",
         user_agent_config_yaml=str(Path("~").expanduser() / ".useragents.yaml"),
         user_agent_lookup=_USER_AGENT_LOOKUP,
     )

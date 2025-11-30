@@ -2,7 +2,7 @@
 #    uv export -o requirements-dev.txt --no-emit-project --no-hashes
 annotated-types==0.7.0
     # via pydantic
-anyio==4.11.0
+anyio==4.12.0
     # via httpx
 attrs==25.4.0
     # via
@@ -10,7 +10,7 @@ attrs==25.4.0
     #   jsonlines
     #   jsonschema
     #   referencing
-beautifulsoup4==4.14.2
+beautifulsoup4==4.14.3
     # via wikipedia
 certifi==2025.11.12
     # via
@@ -189,7 +189,7 @@ pygments==2.19.2
     # via
     #   pytest
     #   rich
-pyogrio==0.12.0
+pyogrio==0.12.1
     # via geopandas
 pyphonetics==0.5.3
     # via hdx-python-utilities
@@ -251,7 +251,7 @@ ruamel-yaml==0.18.16
     # via hdx-python-utilities
 ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
     # via ruamel-yaml
-ruff==0.14.6
+ruff==0.14.7
 scikit-learn==1.7.2
     # via quantulum3
 scipy==1.16.3
@@ -276,8 +276,6 @@ six==1.17.0
     #   pockets
     #   python-dateutil
     #   sphinxcontrib-napoleon
-sniffio==1.3.1
-    # via anyio
 soupsieve==2.8
     # via beautifulsoup4
 sphinxcontrib-napoleon==0.7

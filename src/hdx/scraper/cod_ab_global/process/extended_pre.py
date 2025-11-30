@@ -16,7 +16,7 @@ def get_input_path(
 ) -> Path | None:
     """Get admin level full."""
     df = read_parquet(
-        data_path / "metadata_all.parquet",
+        data_path / "metadata/global_admin_boundaries_metadata_all.parquet",
         columns=["country_iso3", "version", "admin_level_full"],
     )
     try:
@@ -79,7 +79,8 @@ def preprocess_extended(data_path: Path) -> None:
         if input_path is None:
             continue
         output_path = (
-            preprocess_path / input_path.with_stem(input_path.stem + "_" + version).name
+            preprocess_path
+            / input_path.with_stem(input_path.stem.replace("_", f"_{version}_")).name
         )
         if iso3 in where_filter:
             gdal_filter(input_path, output_path, iso3)

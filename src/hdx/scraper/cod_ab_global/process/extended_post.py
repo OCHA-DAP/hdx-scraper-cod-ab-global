@@ -86,8 +86,8 @@ def postprocess_extended(data_dir: Path) -> None:
             iso3_exclude and iso3 in iso3_exclude
         ):
             continue
-        admin_level = int(input_path.stem.split("_")[1][-1])
-        version = input_path.stem.split("_")[-1]
+        admin_level = int(input_path.stem[-1])
+        version = input_path.stem.split("_")[1]
         output_path = (
             output_dir
             / f"cod_ab_{iso3.lower()}_{version}"
