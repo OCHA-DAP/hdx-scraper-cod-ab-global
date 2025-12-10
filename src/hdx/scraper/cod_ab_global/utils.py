@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 from subprocess import run
 
@@ -9,15 +8,12 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from .config import (
     ARCGIS_PASSWORD,
     ARCGIS_SERVER,
-    ARCGIS_SERVICE_REGEX,
     ARCGIS_SERVICE_URL,
     ARCGIS_USERNAME,
     ATTEMPT,
     EXPIRATION,
     TIMEOUT,
     WAIT,
-    iso3_exclude,
-    iso3_include,
 )
 
 cwd = Path(__file__).parent
@@ -83,51 +79,48 @@ def to_parquet(output_path: Path) -> None:
             "--overwrite",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=False,
+        check=True,
     )
     output_path.unlink()
 
 
-def save_metadata(output_file: Path, df: DataFrame) -> None:
+def save_metadata_files(output_file: Path, df: DataFrame) -> None:
+    """Save metadata in parquet and csv."""
+    df.to_parquet(
+        output_file,
+        compression="zstd",
+        compression_level=15,
+        index=False,
+    )
+    df.to_csv(
+        output_file.with_suffix(".csv"),
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+
+def save_metadata(output_file: Path, df_all: DataFrame) -> None:
     """Save metadata in with all and latest versions."""
-    df.to_parquet(
+    save_metadata_files(
         output_file.with_stem(output_file.stem + "_all"),
-        compression="zstd",
-        compression_level=15,
-        index=False,
+        df_all,
     )
-    df.to_csv(
-        output_file.with_stem(output_file.stem + "_all").with_suffix(".csv"),
-        index=False,
-        encoding="utf-8-sig",
-    )
-    df = df.drop_duplicates(subset=["country_iso3"], keep="last")
-    df.to_parquet(
+    df_latest = df_all.drop_duplicates(subset=["country_iso3"], keep="last")
+    save_metadata_files(
         output_file.with_stem(output_file.stem + "_latest"),
-        compression="zstd",
-        compression_level=15,
-        index=False,
+        df_latest,
     )
-    df.to_csv(
-        output_file.with_stem(output_file.stem + "_latest").with_suffix(".csv"),
-        index=False,
-        encoding="utf-8-sig",
+    key_columns = ["country_iso3", "version"]
+    df_historic = df_all.merge(
+        df_latest[key_columns],
+        on=key_columns,
+        how="left",
+        indicator=True,
     )
-
-
-def get_iso3_list(token: str) -> list[str]:
-    """Get a list of ISO3 codes available on the ArcGIS server."""
-    params = {"f": "json", "token": token}
-    services = client_get(ARCGIS_SERVICE_URL, params=params).json()["services"]
-    p = re.compile(ARCGIS_SERVICE_REGEX)
-    iso3_list = [
-        x["name"][14:17].upper()
-        for x in services
-        if x["type"] == "FeatureServer" and p.search(x["name"])
-    ]
-    return [
-        iso3
-        for iso3 in iso3_list
-        if (not iso3_include or iso3 in iso3_include)
-        and (not iso3_exclude or iso3 not in iso3_exclude)
-    ]
+    df_historic = df_historic[df_historic["_merge"] == "left_only"].drop(
+        columns=["_merge"],
+    )
+    save_metadata_files(
+        output_file.with_stem(output_file.stem + "_historic"),
+        df_historic,
+    )

@@ -37,7 +37,7 @@ colorama==0.4.6
     #   pytest
     #   taskipy
     #   tqdm
-coverage==7.12.0
+coverage==7.13.0
     # via pytest-cov
 defopt==7.0.0
     # via hdx-python-api
@@ -59,6 +59,8 @@ filelock==3.20.0
     # via virtualenv
 frictionless==5.18.1
     # via hdx-python-utilities
+fsspec==2025.12.0
+    # via hdx-scraper-cod-ab-global
 geopandas==1.1.1
     # via hdx-scraper-cod-ab-global
 h11==0.16.0
@@ -164,7 +166,7 @@ pandas==2.3.3
     #   hdx-scraper-cod-ab-global
 petl==1.7.17
     # via frictionless
-platformdirs==4.5.0
+platformdirs==4.5.1
     # via virtualenv
 pluggy==1.6.0
     # via
@@ -179,6 +181,10 @@ pockets==0.9.1
 pre-commit==4.5.0
 psutil==6.1.1
     # via taskipy
+psycopg==3.3.2
+    # via hdx-scraper-cod-ab-global
+psycopg-binary==3.3.2 ; implementation_name != 'pypy'
+    # via psycopg
 pyarrow==22.0.0
     # via hdx-scraper-cod-ab-global
 pydantic==2.12.5
@@ -195,7 +201,7 @@ pyphonetics==0.5.3
     # via hdx-python-utilities
 pyproj==3.7.2
     # via geopandas
-pytest==9.0.1
+pytest==9.0.2
     # via pytest-cov
 pytest-cov==7.0.0
 python-dateutil==2.9.0.post0
@@ -243,16 +249,16 @@ rfc3986==2.0.0
     # via frictionless
 rich==14.2.0
     # via typer
-rpds-py==0.29.0
+rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
 ruamel-yaml==0.18.16
     # via hdx-python-utilities
-ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
+ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14' and platform_python_implementation == 'CPython'
     # via ruamel-yaml
-ruff==0.14.7
-scikit-learn==1.7.2
+ruff==0.14.8
+scikit-learn==1.8.0
     # via quantulum3
 scipy==1.16.3
     # via
@@ -261,9 +267,7 @@ scipy==1.16.3
 setuptools==80.9.0
     # via ckanapi
 shapely==2.1.2
-    # via
-    #   geopandas
-    #   hdx-scraper-cod-ab-global
+    # via geopandas
 shellingham==1.5.4
     # via typer
 simpleeval==1.0.3
@@ -297,7 +301,7 @@ text-unidecode==1.3
     # via python-slugify
 threadpoolctl==3.6.0
     # via scikit-learn
-tomli==2.3.0
+tomli==2.3.0 ; python_full_version < '4'
     # via taskipy
 tqdm==4.67.1
     # via hdx-scraper-cod-ab-global
@@ -317,12 +321,14 @@ typing-extensions==4.15.0
 typing-inspection==0.4.2
     # via pydantic
 tzdata==2025.2
-    # via pandas
+    # via
+    #   pandas
+    #   psycopg
 unidecode==1.4.0
     # via
     #   libhxl
     #   pyphonetics
-urllib3==2.5.0
+urllib3==2.6.1
     # via
     #   libhxl
     #   requests

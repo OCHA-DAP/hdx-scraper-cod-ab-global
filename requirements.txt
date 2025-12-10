@@ -49,6 +49,8 @@ et-xmlfile==2.0.0
     # via openpyxl
 frictionless==5.18.1
     # via hdx-python-utilities
+fsspec==2025.12.0
+    # via hdx-scraper-cod-ab-global
 geopandas==1.1.1
     # via hdx-scraper-cod-ab-global
 h11==0.16.0
@@ -151,6 +153,10 @@ ply==3.11
     #   libhxl
 pockets==0.9.1
     # via sphinxcontrib-napoleon
+psycopg==3.3.2
+    # via hdx-scraper-cod-ab-global
+psycopg-binary==3.3.2 ; implementation_name != 'pypy'
+    # via psycopg
 pyarrow==22.0.0
     # via hdx-scraper-cod-ab-global
 pydantic==2.12.5
@@ -209,15 +215,15 @@ rfc3986==2.0.0
     # via frictionless
 rich==14.2.0
     # via typer
-rpds-py==0.29.0
+rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
 ruamel-yaml==0.18.16
     # via hdx-python-utilities
-ruamel-yaml-clib==0.2.15 ; platform_python_implementation == 'CPython'
+ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14' and platform_python_implementation == 'CPython'
     # via ruamel-yaml
-scikit-learn==1.7.2
+scikit-learn==1.8.0
     # via quantulum3
 scipy==1.16.3
     # via
@@ -226,9 +232,7 @@ scipy==1.16.3
 setuptools==80.9.0
     # via ckanapi
 shapely==2.1.2
-    # via
-    #   geopandas
-    #   hdx-scraper-cod-ab-global
+    # via geopandas
 shellingham==1.5.4
     # via typer
 simpleeval==1.0.3
@@ -279,12 +283,14 @@ typing-extensions==4.15.0
 typing-inspection==0.4.2
     # via pydantic
 tzdata==2025.2
-    # via pandas
+    # via
+    #   pandas
+    #   psycopg
 unidecode==1.4.0
     # via
     #   libhxl
     #   pyphonetics
-urllib3==2.5.0
+urllib3==2.6.1
     # via
     #   libhxl
     #   requests

@@ -1,9 +1,12 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from shutil import rmtree
 
 from hdx.data.dataset import Dataset
 from hdx.data.resource import Resource
 from pandas import read_parquet
+
+from ..config import UPDATED_BY_SCRIPT
 
 cwd = Path(__file__).parent
 
@@ -71,7 +74,7 @@ def add_resources(data_dir: Path, dataset: Dataset) -> Dataset:
     return dataset
 
 
-def create_pcodes_dataset(data_dir: Path, info: dict, script_name: str) -> None:
+def create_pcodes_dataset(data_dir: Path, info: dict) -> None:
     """Create a dataset for the world."""
     dataset = initialize_dataset(data_dir)
     dataset = add_resources(data_dir, dataset)
@@ -79,6 +82,7 @@ def create_pcodes_dataset(data_dir: Path, info: dict, script_name: str) -> None:
         remove_additional_resources=True,
         match_resource_order=True,
         hxl_update=False,
-        updated_by_script=script_name,
+        updated_by_script=UPDATED_BY_SCRIPT,
         batch=info["batch"],
     )
+    rmtree(data_dir / "pcodes")

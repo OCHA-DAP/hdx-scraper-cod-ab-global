@@ -1,7 +1,7 @@
 from pathlib import Path
+from shutil import rmtree
 from subprocess import run
 
-from ..config import iso3_exclude, iso3_include
 from ..utils import get_columns
 
 
@@ -32,7 +32,7 @@ def adm_copy(input_path: Path, output_path: Path, level: int) -> None:
             "--lco=COMPRESSION_LEVEL=15",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=False,
+        check=True,
     )
 
 
@@ -53,7 +53,7 @@ def adm_dissolve_down(input_path: Path, output_path: Path, level: int) -> None:
             "--lco=COMPRESSION_LEVEL=15",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=False,
+        check=True,
     )
 
 
@@ -71,21 +71,16 @@ def adm_dissolve_up(input_path: Path, output_path: Path, level: int) -> None:
             "--lco=COMPRESSION_LEVEL=15",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=False,
+        check=True,
     )
 
 
 def postprocess_extended(data_dir: Path) -> None:
     """Postprocess extended boundaries."""
-    input_dir = data_dir / "country/extended_tmp/post"
+    input_dir = data_dir / "country/extended_post"
     output_dir = data_dir / "country/extended"
-    output_dir.mkdir(parents=True, exist_ok=True)
     for input_path in sorted(input_dir.glob("*.parquet")):
         iso3 = input_path.stem.split("_")[0].upper()
-        if (iso3_include and iso3 not in iso3_include) or (
-            iso3_exclude and iso3 in iso3_exclude
-        ):
-            continue
         admin_level = int(input_path.stem[-1])
         version = input_path.stem.split("_")[1]
         output_path = (
@@ -103,3 +98,5 @@ def postprocess_extended(data_dir: Path) -> None:
             input_up = output_path.with_stem(f"{output_path.stem[0:-1]}{level - 1}")
             output_up = output_path.with_stem(f"{output_path.stem[0:-1]}{level}")
             adm_dissolve_up(input_up, output_up, level)
+        input_path.unlink()
+    rmtree(data_dir / "country/extended_post")

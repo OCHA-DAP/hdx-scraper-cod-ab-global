@@ -26,9 +26,14 @@ headers_lengths = {
 
 def get_adm0_pcode_lenths(data_dir: Path) -> DataFrame:
     """Generate a global p-code length list."""
-    df = read_parquet(
-        data_dir / "global" / "original" / "latest" / "admin0.parquet",
-        columns=["adm0_pcode", "iso3"],
+    df = concat(
+        read_parquet(
+            file_path,
+            columns=["adm0_pcode", "iso3"],
+        )
+        for file_path in sorted(
+            (data_dir / "country/original").rglob("*_admin0.parquet"),
+        )
     ).rename(columns={"iso3": "Location"})
     df["Country Length"] = df["adm0_pcode"].str.len()
     return df[["Location", "Country Length"]]
@@ -79,6 +84,33 @@ def generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df: DataFrame) -> N
     )
 
 
+def save_pcodes(pcodes_dir: Path, df_all: DataFrame) -> None:
+    """Save global p-code list."""
+    df_all.to_parquet(
+        pcodes_dir / "global_pcodes.parquet",
+        index=False,
+        compression_level=15,
+        compression="zstd",
+    )
+    concat([DataFrame(headers_pcodes), df_all]).to_csv(
+        pcodes_dir / "global_pcodes.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    df_all = df_all[df_all["Admin Level"] <= ADMIN_2]
+    df_all.to_parquet(
+        pcodes_dir / "global_pcodes_adm_1_2.parquet",
+        index=False,
+        compression_level=15,
+        compression="zstd",
+    )
+    concat([DataFrame(headers_pcodes), df_all]).to_csv(
+        pcodes_dir / "global_pcodes_adm_1_2.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+
 def create_pcodes(data_dir: Path) -> None:
     """Generate a global p-code list."""
     df_all = DataFrame()
@@ -91,15 +123,20 @@ def create_pcodes(data_dir: Path) -> None:
             f"adm{level}_name2",
             f"adm{level}_name3",
         ]
-        df = read_parquet(
-            data_dir / "global" / "original" / "latest" / f"admin{level}.parquet",
-            columns=[
-                *name_columns,
-                f"adm{level}_pcode",
-                f"adm{level - 1}_pcode",
-                "iso3",
-                "valid_on",
-            ],
+        df = concat(
+            read_parquet(
+                file_path,
+                columns=[
+                    *name_columns,
+                    f"adm{level}_pcode",
+                    f"adm{level - 1}_pcode",
+                    "iso3",
+                    "valid_on",
+                ],
+            )
+            for file_path in sorted(
+                (data_dir / "country/original").rglob(f"*_admin{level}.parquet"),
+            )
         )
         df["Admin Level"] = level
         df["Name"] = df[name_columns].bfill(axis=1).iloc[:, 0]
@@ -126,26 +163,4 @@ def create_pcodes(data_dir: Path) -> None:
         lambda x: x["Parent P-Code"] if x["Admin Level"] > 1 else x["Location"],
         axis=1,
     )
-    df_all.to_parquet(
-        pcodes_dir / "global_pcodes.parquet",
-        index=False,
-        compression_level=15,
-        compression="zstd",
-    )
-    concat([DataFrame(headers_pcodes), df_all]).to_csv(
-        pcodes_dir / "global_pcodes.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
-    df_all = df_all[df_all["Admin Level"] <= ADMIN_2]
-    df_all.to_parquet(
-        pcodes_dir / "global_pcodes_adm_1_2.parquet",
-        index=False,
-        compression_level=15,
-        compression="zstd",
-    )
-    concat([DataFrame(headers_pcodes), df_all]).to_csv(
-        pcodes_dir / "global_pcodes_adm_1_2.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
+    save_pcodes(pcodes_dir, df_all)

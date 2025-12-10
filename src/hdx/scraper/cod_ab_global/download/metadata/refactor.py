@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from hdx.location.country import Country
-from pandas import read_parquet
+from pandas import DataFrame, concat, read_parquet
 
 from ...config import iso3_exclude
 from ...utils import save_metadata
@@ -16,6 +16,15 @@ column_rename = {
 contributor_updates = {
     "IRQ": "OCHA Middle East and North Africa (ROMENA)",
 }
+
+admin_level_full_updates = [
+    ("PHL", "v03", 3),
+]
+
+extra_rows = [
+    {"country_iso3": "CUB", "version": "v01", "admin_level_max": 2},
+]
+
 
 name_columns = [
     "admin_1_name",
@@ -67,12 +76,20 @@ columns = [
 ]
 
 
+def merge_unique(df1: DataFrame, df2: DataFrame, columns: list[str]) -> DataFrame:
+    """Merge two dataframes and keep only unique rows from df1."""
+    merged_df = df1.merge(df2[columns], on=columns, how="left", indicator=True)
+    return merged_df[merged_df["_merge"] == "left_only"].drop(columns=["_merge"])
+
+
 def refactor(output_file: Path) -> None:
     """Refactor file."""
     iso3_exclude_all = [x for x in iso3_exclude if len(x) == ISO3_LEN]
     iso3_exclude_version = [x.replace("_V", "v") for x in iso3_exclude if "_V" in x]
     df = read_parquet(output_file)
     df = df.rename(columns=column_rename)
+    df_extra = merge_unique(DataFrame(extra_rows), df, ["country_iso3", "version"])
+    df = concat([df, df_extra], ignore_index=True)
     for key, value in contributor_updates.items():
         df.loc[df["country_iso3"] == key, "contributor"] = value
     df["country_name"] = df["country_iso3"].apply(Country.get_country_name_from_iso3)
@@ -83,6 +100,11 @@ def refactor(output_file: Path) -> None:
         df["admin_level_max"].astype("string"),
     )
     df["admin_level_full"] = df["admin_level_full"].astype("Int32")
+    for iso3, version, level in admin_level_full_updates:
+        df.loc[
+            (df["country_iso3"] == iso3) & (df["version"] == version),
+            "admin_level_full",
+        ] = level
     df[count_columns] = df[count_columns].astype("Int32")
     df = df[df["version"] != ""]
     df = df[df["admin_level_max"].gt(0)]

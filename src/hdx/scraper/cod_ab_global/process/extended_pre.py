@@ -1,11 +1,11 @@
 from pathlib import Path
-from shutil import copy
+from shutil import copy, rmtree
 from subprocess import run
 from venv import logger
 
 from pandas import read_parquet
 
-from ..config import iso3_exclude, iso3_include, where_filter
+from ..config import where_filter
 
 
 def get_input_path(
@@ -60,20 +60,16 @@ def gdal_filter(input_path: Path, output_path: Path, iso3: str) -> None:
             "--lco=COMPRESSION_LEVEL=15",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=False,
+        check=True,
     )
 
 
 def preprocess_extended(data_path: Path) -> None:
     """Preprocess extended boundaries."""
-    preprocess_path = data_path / "country/extended_tmp/pre"
+    preprocess_path = data_path / "country/extended_pre"
     preprocess_path.mkdir(parents=True, exist_ok=True)
     for layer in sorted((data_path / "country/original").glob("cod_ab_*")):
         iso3 = layer.name.split("_")[2].upper()
-        if (iso3_include and iso3 not in iso3_include) or (
-            iso3_exclude and iso3 in iso3_exclude
-        ):
-            continue
         version = layer.name.split("_")[-1]
         input_path = get_input_path(data_path, layer, iso3, version)
         if input_path is None:
@@ -86,3 +82,5 @@ def preprocess_extended(data_path: Path) -> None:
             gdal_filter(input_path, output_path, iso3)
         else:
             copy(input_path, output_path)
+        rmtree(layer)
+    rmtree(data_path / "country/original")
