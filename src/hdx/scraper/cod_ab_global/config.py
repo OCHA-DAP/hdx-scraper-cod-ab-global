@@ -42,9 +42,7 @@ EXPIRATION = int(getenv("EXPIRATION", "1440"))  # minutes (1 day)
 UPDATED_BY_SCRIPT = "HDX Scraper: COD-AB Global"
 
 run_versions = [
-    x.strip()
-    for x in getenv("RUN_VERSIONS", "LATEST,HISTORIC").lower().split(",")
-    if x.strip()
+    x.strip() for x in getenv("RUN_VERSIONS", "LATEST").lower().split(",") if x.strip()
 ]
 
 iso3_include = [
