@@ -10,19 +10,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hdx-scraper-cod-ab-global"
-requires-python = "~=3.13.0"
+requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
+    "fsspec>=2025.12.0",
     "geopandas",
     "hdx-python-api",
     "hdx-python-country",
     "hdx-python-utilities",
     "httpx[http2]",
     "pandas",
+    "psycopg[binary]",
     "pyarrow",
     "python-dotenv",
     "quantulum3[classifier]",
-    "shapely",
     "tenacity",
     "tqdm",
 ]
