@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from ...config import ATTEMPT, WAIT
+from ...config import ATTEMPT, WAIT, gdal_parquet_options
 from ..utils import parse_fields
 from .refactor import refactor
 
@@ -34,6 +34,7 @@ def download_feature(
         [
             *["gdal", "vector", "pipeline", "!"],
             *["read", "ESRIJSON:" + query_url, "!"],
+            *["reproject", "--dst-crs=EPSG:4326", "!"],
             *["make-valid", "!"],
             *[
                 "set-field-type",
@@ -42,10 +43,7 @@ def download_feature(
                 "!",
             ],
             *["write", output_file],
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )

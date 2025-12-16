@@ -2,6 +2,7 @@ from pathlib import Path
 from shutil import rmtree
 from subprocess import run
 
+from ..config import gdal_parquet_options
 from ..utils import get_columns
 
 
@@ -20,16 +21,15 @@ def gdal_clip(input_path: Path, output_path: Path, clip_path: Path) -> None:
                 "--dialect=SQLITE",
                 (
                     f"--sql=SELECT {columns}, ST_Union(geometry) AS geometry "
-                    f"FROM {input_path.stem} GROUP BY {columns}"
+                    f"FROM {input_path.stem} "
+                    "WHERE ST_GeometryType(geometry) IN ('POLYGON', 'MULTIPOLYGON') "
+                    f"GROUP BY {columns}"
                 ),
                 "!",
             ],
             *["make-valid", "!"],
             *["write", output_path],
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )

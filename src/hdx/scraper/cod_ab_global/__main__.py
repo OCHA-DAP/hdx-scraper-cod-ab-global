@@ -7,6 +7,7 @@ from hdx.utilities.path import wheretostart_tempdir_batch
 from .config import run_versions
 from .dataset.boundaries import create_boundaries_dataset
 from .dataset.pcodes import create_pcodes_dataset
+from .download.admin0 import download_admin0
 from .download.boundaries import download_boundaries
 from .download.metadata import download_metadata
 from .edge_extender import edge_extender
@@ -32,6 +33,7 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
         data_dir.mkdir(parents=True, exist_ok=True)
         for run_version in run_versions:
             token = generate_token()
+            download_admin0(data_dir, token)
             download_metadata(data_dir, token)
             download_boundaries(data_dir, token, run_version)
             if run_version == "latest":

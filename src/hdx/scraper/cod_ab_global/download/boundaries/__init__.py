@@ -36,7 +36,8 @@ def download_services(data_dir: Path, params: dict, iso3: str, version: str) -> 
         service_url = f"{ARCGIS_SERVICE_URL}/{service_name_in}/FeatureServer"
         layers = client_get(service_url, params).json()["layers"]
     download_layers(output_dir, service_url, params, layers)
-    if sorted(output_dir.glob("*.parquet"))[-1].stem[-1] == "0":
+    file_list = sorted(output_dir.glob("*.parquet"))
+    if file_list and file_list[-1].stem[-1] == "0":
         rmtree(output_dir)
 
 

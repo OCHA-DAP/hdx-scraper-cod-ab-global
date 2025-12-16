@@ -5,7 +5,7 @@ from venv import logger
 
 from pandas import read_parquet
 
-from ..config import where_filter
+from ..config import gdal_parquet_options, where_filter
 
 
 def get_input_path(
@@ -55,10 +55,7 @@ def gdal_filter(input_path: Path, output_path: Path, iso3: str) -> None:
             *["gdal", "vector", "filter"],
             *[input_path, output_path],
             f"--where={where_filter[iso3]}",
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )

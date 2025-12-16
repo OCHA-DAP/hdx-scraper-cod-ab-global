@@ -32,6 +32,7 @@ ARCGIS_SERVICE_URL = f"{ARCGIS_SERVER}/server/rest/services/{ARCGIS_FOLDER}"
 ARCGIS_LAYER_REGEX = getenv("ARCGIS_LAYER_REGEX", r"^[a-z]{3}_admin\d$")
 ARCGIS_METADATA = getenv("ARCGIS_METADATA", "COD_Global_Metadata")
 ARCGIS_METADATA_URL = f"{ARCGIS_SERVICE_URL}/{ARCGIS_METADATA}/FeatureServer/0"
+ARCGIS_ADM0_URL = f"{ARCGIS_SERVICE_URL}/Global_AB_1M_fs_gray/FeatureServer/5"
 
 ATTEMPT = int(getenv("ATTEMPT", "5"))
 WAIT = int(getenv("WAIT", "10"))
@@ -60,3 +61,11 @@ where_filter = {
 }
 
 bnda_disp = ["xAB"]
+
+gdal_parquet_options = [
+    "--overwrite",
+    "--quiet",
+    "--lco=USE_PARQUET_GEO_TYPES=YES",
+    "--lco=COMPRESSION_LEVEL=15",
+    "--lco=COMPRESSION=ZSTD",
+]

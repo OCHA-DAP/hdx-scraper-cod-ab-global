@@ -16,7 +16,7 @@ def get_dataset_info(run_version: str) -> dict:
     title_extra = ""
     if run_version != "latest":
         name_extra = f"-{run_version}"
-        title_extra = f" ({run_version.title()} Versions)"
+        title_extra = f" ({run_version.title()})"
     return {
         "name": f"cod-ab-global{name_extra}",
         "title": f"OCHA Global Subnational Administrative Boundaries{title_extra}",
@@ -41,24 +41,24 @@ def get_dataset_info(run_version: str) -> dict:
 def get_resource(run_version: str, stage: str) -> dict:
     """Get resource info for a dataset."""
     resources = {
-        "original": {
+        "matched": {
             "name": f"global_admin_boundaries_matched_{run_version}.gdb.zip",
             "description": (
                 "Edge-matched geometry (no gaps or overlaps), "
-                f"{run_version} versions only.",
+                f"{run_version} versions only."
             ),
         },
-        "extended": {
+        "original": {
             "name": f"global_admin_boundaries_original_{run_version}.gdb.zip",
             "description": (
                 "Original geometry (with gaps and overlaps), "
                 f"{run_version} versions only."
             ),
         },
-        "matched": {
+        "extended": {
             "name": f"global_admin_boundaries_extended_{run_version}.gdb.zip",
             "description": (
-                f"Extended geometry (pre-edge-matching), {run_version} versions only.",
+                f"Extended geometry (pre-edge-matching), {run_version} versions only."
             ),
         },
     }
@@ -67,6 +67,11 @@ def get_resource(run_version: str, stage: str) -> dict:
 
 def get_notes(admin_count: int, run_version: str) -> str:
     """Get notes for a dataset."""
+    other_link = (
+        "[historic boundaries](https://data.humdata.org/dataset/cod-ab-global-historic)"
+        if run_version == "latest"
+        else "[latest boundaries](https://data.humdata.org/dataset/cod-ab-global)"
+    )
     return (
         "Global administrative level 0-4 boundaries (COD-AB) dataset for "
         f"{admin_count} countries / territories, {run_version} versions."
@@ -89,6 +94,8 @@ def get_notes(admin_count: int, run_version: str) -> str:
         "edge-matching when not using UN Geodata 1:1M international boundaries."
         "  \n  \n"
         "Metadata about sources used is also available as a table."
+        "  \n  \n"
+        f"A version of this dataset is also available with {other_link}."
     )
 
 
@@ -113,13 +120,9 @@ def initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
 
 def add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Dataset:
     """Add resources to a dataset."""
-    processing = resource_data["name"].replace(".", "_").split("_")[3]
-    extent = resource_data["name"].replace(".", "_").split("_")[4]
     resource_data["p_coded"] = "True"
     resource = Resource(resource_data)
-    resource.set_file_to_upload(
-        str(data_dir / "global" / processing / extent / resource["name"]),
-    )
+    resource.set_file_to_upload(str(data_dir / "global" / resource["name"]))
     resource.set_format("Geodatabase")
     dataset.add_update_resource(resource)
     return dataset
@@ -169,3 +172,4 @@ def create_boundaries_dataset(
     rmtree(data_dir / "global")
     if stage == "matched":
         rmtree(data_dir / "metadata")
+        (data_dir / "bnda_cty.parquet").unlink()

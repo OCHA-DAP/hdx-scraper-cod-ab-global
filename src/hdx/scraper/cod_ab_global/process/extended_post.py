@@ -2,6 +2,7 @@ from pathlib import Path
 from shutil import rmtree
 from subprocess import run
 
+from ..config import gdal_parquet_options
 from ..utils import get_columns
 
 
@@ -27,10 +28,7 @@ def adm_copy(input_path: Path, output_path: Path, level: int) -> None:
                 f"--sql=SELECT {columns},{level} AS adm_origin,geometry "
                 f"FROM {input_path.stem}"
             ),
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )
@@ -48,10 +46,7 @@ def adm_dissolve_down(input_path: Path, output_path: Path, level: int) -> None:
                 f"--sql=SELECT {columns}, ST_Union(geometry) AS geometry "
                 f"FROM {input_path.stem} GROUP BY {columns}"
             ),
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )
@@ -66,10 +61,7 @@ def adm_dissolve_up(input_path: Path, output_path: Path, level: int) -> None:
             *["gdal", "vector", "sql"],
             *[input_path, output_path],
             f"--sql=SELECT {extra_columns},{columns},geometry FROM {input_path.stem}",
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )

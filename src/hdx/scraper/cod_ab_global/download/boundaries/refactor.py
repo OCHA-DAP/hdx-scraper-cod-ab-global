@@ -4,6 +4,8 @@ from subprocess import run
 from geopandas import read_parquet
 from hdx.location.country import Country
 
+from ...config import gdal_parquet_options
+
 
 def get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:
     """Get a list of column names for the given admin level."""
@@ -48,10 +50,7 @@ def refactor(output_tmp: Path) -> None:
         [
             *["gdal", "vector", "convert"],
             *[output_tmp, output_file],
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=True,
     )

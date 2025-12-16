@@ -6,6 +6,7 @@ from venv import logger
 from psycopg import Connection
 from psycopg.sql import SQL, Identifier
 
+from ..config import gdal_parquet_options
 from .config import dbname, quiet
 from .topology import check_gaps, check_overlaps
 
@@ -38,13 +39,10 @@ def main(conn: Connection, name: str, file: Path, layer: str, *_: list) -> None:
         [
             *["gdal", "vector", "convert"],
             *[f"PG:dbname={dbname}", output_path],
-            "--overwrite",
-            "--quiet",
             f"--input-layer={name}_06",
             f"--output-layer={layer}",
-            "--layer-creation-option=COMPRESSION_LEVEL=15",
-            "--layer-creation-option=COMPRESSION=ZSTD",
-            "--layer-creation-option=GEOMETRY_NAME=geometry",
+            "--lco=GEOMETRY_NAME=geometry",
+            *gdal_parquet_options,
         ],
         check=True,
     )
