@@ -67,7 +67,7 @@ h11==0.16.0
     # via httpcore
 h2==4.3.0
     # via httpx
-hdx-python-api==6.5.4
+hdx-python-api==6.5.6
     # via hdx-scraper-cod-ab-global
 hdx-python-country==3.9.8
     # via
@@ -178,7 +178,7 @@ ply==3.11
     #   libhxl
 pockets==0.9.1
     # via sphinxcontrib-napoleon
-pre-commit==4.5.0
+pre-commit==4.5.1
 psutil==6.1.1
     # via taskipy
 psycopg==3.3.2
@@ -253,9 +253,9 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruamel-yaml==0.18.16
+ruamel-yaml==0.18.17
     # via hdx-python-utilities
-ruamel-yaml-clib==0.2.15 ; python_full_version < '3.14' and platform_python_implementation == 'CPython'
+ruamel-yaml-clib==0.2.15 ; python_full_version < '3.15' and platform_python_implementation == 'CPython'
     # via ruamel-yaml
 ruff==0.14.9
 scikit-learn==1.8.0

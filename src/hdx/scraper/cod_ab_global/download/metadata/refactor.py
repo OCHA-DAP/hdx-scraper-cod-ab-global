@@ -36,6 +36,7 @@ source_updates = {
 }
 
 contributor_updates = {
+    "BFA": "OCHA Burkina Faso",
     "GEO": "OCHA Middle East and North Africa (ROMENA)",
     "GTM": "OCHA Field Information Services Section (FISS)",
     "HND": "OCHA Latin America and the Caribbean (ROLAC)",
@@ -66,8 +67,8 @@ extra_rows = [
         "country_iso3": "CUB",
         "version": "v01",
         "admin_level_max": 2,
-        "admin_1_name": "province",
-        "admin_2_name": "municipio",
+        "admin_1_name": "Province",
+        "admin_2_name": "Municipio",
         "admin_1_count": 16,
         "admin_2_count": 168,
         "date_source": dt.fromisoformat("2017-09-07").date(),

@@ -22,6 +22,7 @@ def is_bool(string: str) -> bool:
     return string.upper() in ("YES", "TRUE", "ON", "1")
 
 
+UPDATED_BY_SCRIPT = "HDX Scraper: COD-AB Global"
 OBJECTID = "esriFieldTypeOID"
 
 ARCGIS_SERVER = getenv("ARCGIS_SERVER", "https://gis.unocha.org")
@@ -40,11 +41,9 @@ TIMEOUT = int(getenv("TIMEOUT", "60"))
 TIMEOUT_DOWNLOAD = int(getenv("TIMEOUT_DOWNLOAD", "600"))
 EXPIRATION = int(getenv("EXPIRATION", "1440"))  # minutes (1 day)
 
-UPDATED_BY_SCRIPT = "HDX Scraper: COD-AB Global"
+RUN_VERSION = getenv("RUN_VERSION", "LATEST,HISTORIC") or "LATEST,HISTORIC"
 
-run_versions = [
-    x.strip() for x in getenv("RUN_VERSIONS", "LATEST").lower().split(",") if x.strip()
-]
+run_versions = [x.strip() for x in RUN_VERSION.lower().split(",") if x.strip()]
 
 iso3_include = [
     x.strip() for x in getenv("ISO3_INCLUDE", "").upper().split(",") if x.strip()

@@ -370,7 +370,7 @@ wheels = [
 
 [[package]]
 name = "hdx-python-api"
-version = "6.5.4"
+version = "6.5.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ckanapi" },
@@ -383,9 +383,9 @@ dependencies = [
     { name = "quantulum3" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/fa/61fd6723973e206cb355b92798749e850c0a721602dff9c2fc8daef64542/hdx_python_api-6.5.4.tar.gz", hash = "sha256:da4d2663141a2738a2a272fbd2255c9a76d3ec459cc40d337dba7923a378fe4c", size = 440918, upload-time = "2025-11-19T03:49:41.8Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/84/fc9503e731068f6da3676d9741bfa89dab78b11787a57989fc4938d27cc9/hdx_python_api-6.5.6.tar.gz", hash = "sha256:ad753cd4d497f513f31434ce5c87631867fa0dfb08918cefce96d56af865ac77", size = 442078, upload-time = "2025-12-18T01:33:09.025Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/d0/2ddb30679b863a87577797b615a7218f8e4c846fd50bc0f0898a470fd5e0/hdx_python_api-6.5.4-py3-none-any.whl", hash = "sha256:e85113dda1805f90373aedef650d02d9a6329e885e44f964fbb9c537f47cfe47", size = 77319, upload-time = "2025-11-19T03:49:39.756Z" },
+    { url = "https://files.pythonhosted.org/packages/13/8a/54eac6b0386799a1ddb65ab2971c6383ea4a57acf6e908b4b0457c1e8b74/hdx_python_api-6.5.6-py3-none-any.whl", hash = "sha256:3096ce74cee671db928f76d86a2484eb9ffb615b63de285b95af4ccce80f9902", size = 77827, upload-time = "2025-12-18T01:33:07.206Z" },
 ]
 
 [[package]]
@@ -1038,7 +1038,7 @@ wheels = [
 
 [[package]]
 name = "pre-commit"
-version = "4.5.0"
+version = "4.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cfgv" },
@@ -1047,9 +1047,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "virtualenv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/9b/6a4ffb4ed980519da959e1cf3122fc6cb41211daa58dbae1c73c0e519a37/pre_commit-4.5.0.tar.gz", hash = "sha256:dc5a065e932b19fc1d4c653c6939068fe54325af8e741e74e88db4d28a4dd66b", size = 198428, upload-time = "2025-11-22T21:02:42.304Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/f1/6d86a29246dfd2e9b6237f0b5823717f60cad94d47ddc26afa916d21f525/pre_commit-4.5.1.tar.gz", hash = "sha256:eb545fcff725875197837263e977ea257a402056661f09dae08e4b149b030a61", size = 198232, upload-time = "2025-12-16T21:14:33.552Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/c4/b2d28e9d2edf4f1713eb3c29307f1a63f3d67cf09bdda29715a36a68921a/pre_commit-4.5.0-py2.py3-none-any.whl", hash = "sha256:25e2ce09595174d9c97860a95609f9f852c0614ba602de3561e267547f2335e1", size = 226429, upload-time = "2025-11-22T21:02:40.836Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/19/fd3ef348460c80af7bb4669ea7926651d1f95c23ff2df18b9d24bab4f3fa/pre_commit-4.5.1-py2.py3-none-any.whl", hash = "sha256:3b3afd891e97337708c1674210f8eba659b52a38ea5f822ff142d10786221f77", size = 226437, upload-time = "2025-12-16T21:14:32.409Z" },
 ]
 
 [[package]]
@@ -1595,14 +1595,14 @@ wheels = [
 
 [[package]]
 name = "ruamel-yaml"
-version = "0.18.16"
+version = "0.18.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ruamel-yaml-clib", marker = "python_full_version < '3.14' and platform_python_implementation == 'CPython'" },
+    { name = "ruamel-yaml-clib", marker = "python_full_version < '3.15' and platform_python_implementation == 'CPython'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/c7/ee630b29e04a672ecfc9b63227c87fd7a37eb67c1bf30fe95376437f897c/ruamel.yaml-0.18.16.tar.gz", hash = "sha256:a6e587512f3c998b2225d68aa1f35111c29fad14aed561a26e73fab729ec5e5a", size = 147269, upload-time = "2025-10-22T17:54:02.346Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/2b/7a1f1ebcd6b3f14febdc003e658778d81e76b40df2267904ee6b13f0c5c6/ruamel_yaml-0.18.17.tar.gz", hash = "sha256:9091cd6e2d93a3a4b157ddb8fabf348c3de7f1fb1381346d985b6b247dcd8d3c", size = 149602, upload-time = "2025-12-17T20:02:55.757Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/73/bb1bc2529f852e7bf64a2dec885e89ff9f5cc7bbf6c9340eed30ff2c69c5/ruamel.yaml-0.18.16-py3-none-any.whl", hash = "sha256:048f26d64245bae57a4f9ef6feb5b552a386830ef7a826f235ffb804c59efbba", size = 119858, upload-time = "2025-10-22T17:53:59.012Z" },
+    { url = "https://files.pythonhosted.org/packages/af/fe/b6045c782f1fd1ae317d2a6ca1884857ce5c20f59befe6ab25a8603c43a7/ruamel_yaml-0.18.17-py3-none-any.whl", hash = "sha256:9c8ba9eb3e793efdf924b60d521820869d5bf0cb9c6f1b82d82de8295e290b9d", size = 121594, upload-time = "2025-12-17T20:02:07.657Z" },
 ]
 
 [[package]]

@@ -22,7 +22,7 @@ def get_dataset_info(run_version: str) -> dict:
         "title": f"OCHA Global Subnational Administrative Boundaries{title_extra}",
         "methodology_other": (
             f"Data taken from {run_version} administrative boundary layers available "
-            "on the UN OCHA FIS ArcGIS server (gis.unocha.org). Edge-extending of "
+            "on the UN OCHA ISS ArcGIS server (gis.unocha.org). Edge-extending of "
             "original geometries done using an algorithm "
             "(github.com/fieldmaps/edge-extender). "
             "Edge-matching done using UN Geodata 1:1M international boundaries "
@@ -171,5 +171,4 @@ def create_boundaries_dataset(
     dataset_create_in_hdx(dataset, info)
     rmtree(data_dir / "global")
     if stage == "matched":
-        rmtree(data_dir / "metadata")
-        (data_dir / "bnda_cty.parquet").unlink()
+        rmtree(data_dir)

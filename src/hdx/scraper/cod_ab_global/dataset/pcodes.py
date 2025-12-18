@@ -20,7 +20,7 @@ dataset_info = {
     ),
     "methodology_other": (
         "P-codes taken from the latest administrative boundary layers available on the "
-        "OCHA FIS ArcGIS server (gis.unocha.org)."
+        "OCHA ISS ArcGIS server (gis.unocha.org)."
     ),
 }
 
