@@ -24,7 +24,6 @@ def create_boundaries(data_dir: Path, run_version: str, stage: str) -> None:
                 *mode,
                 "--quiet",
                 f"--output-layer={output_layer}",
-                "--lco=TARGET_ARCGIS_VERSION=ARCGIS_PRO_3_2_OR_LATER",
             ],
             check=True,
             capture_output=True,

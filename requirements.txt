@@ -2,7 +2,7 @@
 #    uv export -o requirements.txt --no-dev --no-emit-project --no-hashes
 annotated-types==0.7.0
     # via pydantic
-anyio==4.12.0
+anyio==4.12.1
     # via httpx
 attrs==25.4.0
     # via
@@ -12,7 +12,7 @@ attrs==25.4.0
     #   referencing
 beautifulsoup4==4.14.3
     # via wikipedia
-certifi==2025.11.12
+certifi==2026.1.4
     # via
     #   httpcore
     #   httpx
@@ -41,7 +41,7 @@ docopt==0.6.2
     # via
     #   ckanapi
     #   num2words
-docutils==0.22.3
+docutils==0.22.4
     # via defopt
 email-validator==2.3.0
     # via hdx-python-api
@@ -49,21 +49,21 @@ et-xmlfile==2.0.0
     # via openpyxl
 frictionless==5.18.1
     # via hdx-python-utilities
-fsspec==2025.12.0
+fsspec==2026.1.0
     # via hdx-scraper-cod-ab-global
-geopandas==1.1.1
+geopandas==1.1.2
     # via hdx-scraper-cod-ab-global
 h11==0.16.0
     # via httpcore
 h2==4.3.0
     # via httpx
-hdx-python-api==6.5.6
+hdx-python-api==6.6.0
     # via hdx-scraper-cod-ab-global
-hdx-python-country==3.9.8
+hdx-python-country==4.0.0
     # via
     #   hdx-python-api
     #   hdx-scraper-cod-ab-global
-hdx-python-utilities==3.9.6
+hdx-python-utilities==4.0.0
     # via
     #   hdx-python-api
     #   hdx-python-country
@@ -74,7 +74,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via hdx-scraper-cod-ab-global
-humanize==4.14.0
+humanize==4.15.0
     # via frictionless
 hyperframe==6.1.0
     # via h2
@@ -100,7 +100,7 @@ jsonlines==4.0.0
     # via hdx-python-utilities
 jsonpath-ng==1.7.0
     # via libhxl
-jsonschema==4.25.1
+jsonschema==4.26.0
     # via
     #   frictionless
     #   tableschema-to-template
@@ -116,7 +116,7 @@ makefun==1.16.0
     # via hdx-python-api
 markdown-it-py==4.0.0
     # via rich
-marko==2.2.1
+marko==2.2.2
     # via frictionless
 markupsafe==3.0.3
     # via jinja2
@@ -126,7 +126,7 @@ more-itertools==10.8.0
     # via inflect
 num2words==0.5.14
     # via quantulum3
-numpy==2.3.5
+numpy==2.4.1
     # via
     #   geopandas
     #   pandas
@@ -219,13 +219,11 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-ruamel-yaml==0.18.17
+ruamel-yaml==0.19.1
     # via hdx-python-utilities
-ruamel-yaml-clib==0.2.15 ; python_full_version < '3.15' and platform_python_implementation == 'CPython'
-    # via ruamel-yaml
 scikit-learn==1.8.0
     # via quantulum3
-scipy==1.16.3
+scipy==1.17.0
     # via
     #   quantulum3
     #   scikit-learn
@@ -245,7 +243,7 @@ six==1.17.0
     #   pockets
     #   python-dateutil
     #   sphinxcontrib-napoleon
-soupsieve==2.8
+soupsieve==2.8.1
     # via beautifulsoup4
 sphinxcontrib-napoleon==0.7
     # via defopt
@@ -269,7 +267,7 @@ tqdm==4.67.1
     # via hdx-scraper-cod-ab-global
 typeguard==4.4.4
     # via inflect
-typer==0.20.0
+typer==0.21.1
     # via frictionless
 typing-extensions==4.15.0
     # via
@@ -290,7 +288,7 @@ unidecode==1.4.0
     # via
     #   libhxl
     #   pyphonetics
-urllib3==2.6.2
+urllib3==2.6.3
     # via
     #   libhxl
     #   requests
