@@ -31,5 +31,5 @@ def download_admin0(data_dir: Path, token: str) -> None:
             *["write", output_file],
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )

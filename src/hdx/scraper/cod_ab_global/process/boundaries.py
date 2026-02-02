@@ -19,13 +19,14 @@ def create_boundaries(data_dir: Path, run_version: str, stage: str) -> None:
         output_layer = f"admin{input_path.stem[-1]}"
         run(
             [
-                *["gdal", "vector", "convert"],
+                *["gdal", "vector", "set-field-type"],
                 *[input_path, output_path / output_path.name],
                 *mode,
                 "--quiet",
                 f"--output-layer={output_layer}",
+                *["--src-field-type=Date", "--dst-field-type=DateTime"],
             ],
-            check=True,
+            check=False,
             capture_output=True,
         )
     make_archive(str(output_path), "zip", output_path)

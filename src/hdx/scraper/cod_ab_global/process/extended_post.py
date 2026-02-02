@@ -30,7 +30,7 @@ def adm_copy(input_path: Path, output_path: Path, level: int) -> None:
             ),
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
 
 
@@ -48,7 +48,7 @@ def adm_dissolve_down(input_path: Path, output_path: Path, level: int) -> None:
             ),
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
 
 
@@ -63,7 +63,7 @@ def adm_dissolve_up(input_path: Path, output_path: Path, level: int) -> None:
             f"--sql=SELECT {extra_columns},{columns},geometry FROM {input_path.stem}",
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
 
 

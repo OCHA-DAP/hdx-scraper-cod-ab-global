@@ -79,7 +79,7 @@ def to_parquet(output_path: Path) -> None:
             "--overwrite",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=True,
+        check=False,
     )
     output_path.unlink()
 

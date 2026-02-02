@@ -1,11 +1,11 @@
 from pathlib import Path
-from shutil import rmtree
 
 from hdx.data.dataset import Dataset
 from hdx.data.resource import Resource
 from pandas import read_parquet
 
 from ..config import UPDATED_BY_SCRIPT
+from .boundaries_utils import compare_gdb
 
 cwd = Path(__file__).parent
 
@@ -77,7 +77,7 @@ def get_notes(admin_count: int, run_version: str) -> str:
         f"{admin_count} countries / territories, {run_version} versions."
         "  \n  \n"
         "This is an aggregation of "
-        "[subnational administrative boundaries](https://data.humdata.org/dataset/?dataseries_name=COD+-+Subnational+Administrative+Boundaries&cod_level=cod-enhanced)"
+        "[subnational administrative boundaries](https://data.humdata.org/dataset/?cod_level=cod-enhanced&res_format=GeoJSON)"
         " available in 3 variations:"
         "  \n  \n"
         "**Edge-Matched**: Subnational boundaries are aligned to fit UN Geodata 1:1M "
@@ -111,7 +111,7 @@ def initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
     dataset_info = get_dataset_info(run_version)
     dataset_info["notes"] = get_notes(layer_count, run_version)
     dataset = Dataset(dataset_info)
-    dataset.update_from_yaml(path=str(cwd / "../config/hdx_dataset_static.yaml"))
+    dataset.update_from_yaml(path=cwd / "../config/hdx_dataset_static.yaml")
     dataset.add_other_location("world")
     dataset.add_tags(["administrative boundaries-divisions"])
     dataset.set_time_period(start_date, end_date)
@@ -122,7 +122,11 @@ def add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Data
     """Add resources to a dataset."""
     resource_data["p_coded"] = "True"
     resource = Resource(resource_data)
-    resource.set_file_to_upload(str(data_dir / "global" / resource["name"]))
+    file_to_upload = compare_gdb(
+        data_dir / "global" / resource["name"],
+        dataset.get_name_or_id(),
+    )
+    resource.set_file_to_upload(file_to_upload)
     resource.set_format("Geodatabase")
     dataset.add_update_resource(resource)
     return dataset
@@ -139,7 +143,7 @@ def add_metadata_resource(
         "description": "Associated metadata for administrative boundaries.",
     }
     resource = Resource(resource_data)
-    resource.set_file_to_upload(str(data_dir / "metadata" / resource_data["name"]))
+    resource.set_file_to_upload(data_dir / "metadata" / resource_data["name"])
     resource.set_format("CSV")
     dataset.add_update_resource(resource)
     return dataset
@@ -156,19 +160,12 @@ def dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
     )
 
 
-def create_boundaries_dataset(
-    data_dir: Path,
-    run_version: str,
-    stage: str,
-    info: dict,
-) -> None:
+def create_boundaries_dataset(data_dir: Path, run_version: str, info: dict) -> None:
     """Create a dataset for the world."""
+    for stage in ["matched", "original", "extended"]:
+        dataset = initialize_dataset(data_dir, run_version)
+        resource = get_resource(run_version, stage)
+        dataset = add_resources(data_dir, dataset, resource)
+        dataset_create_in_hdx(dataset, info)
     dataset = initialize_dataset(data_dir, run_version)
-    resource = get_resource(run_version, stage)
-    dataset = add_resources(data_dir, dataset, resource)
-    if stage == "matched":
-        dataset = add_metadata_resource(data_dir, run_version, dataset)
-    dataset_create_in_hdx(dataset, info)
-    rmtree(data_dir / "global")
-    if stage == "matched":
-        rmtree(data_dir)
+    dataset = add_metadata_resource(data_dir, run_version, dataset)

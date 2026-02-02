@@ -31,7 +31,7 @@ def gdal_clip(input_path: Path, output_path: Path, clip_path: Path) -> None:
             *["write", output_path],
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
 
 

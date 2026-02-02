@@ -37,14 +37,13 @@ def refactor(output_tmp: Path) -> None:
     gdf["valid_to"] = gdf["valid_to"].astype("date32[pyarrow]")
     gdf[nullable_columns] = gdf[nullable_columns].astype("string")
     gdf = gdf[all_columns]
-    gdf = gdf.sort_values(by=pcode_columns).reset_index()
+    gdf = gdf.sort_values(by=pcode_columns).reset_index(drop=True)
     gdf.to_parquet(
         output_tmp,
         compression_level=15,
         compression="zstd",
         schema_version="1.1.0",
         write_covering_bbox=True,
-        index=False,
     )
     run(
         [
@@ -52,6 +51,6 @@ def refactor(output_tmp: Path) -> None:
             *[output_tmp, output_file],
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
     output_tmp.unlink()

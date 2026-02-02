@@ -37,7 +37,7 @@ colorama==0.4.6
     #   pytest
     #   taskipy
     #   tqdm
-coverage==7.13.1
+coverage==7.13.2
     # via pytest-cov
 defopt==7.0.0
     # via hdx-python-api
@@ -67,13 +67,13 @@ h11==0.16.0
     # via httpcore
 h2==4.3.0
     # via httpx
-hdx-python-api==6.6.0
+hdx-python-api==6.6.4
     # via hdx-scraper-cod-ab-global
-hdx-python-country==4.0.0
+hdx-python-country==4.1.0
     # via
     #   hdx-python-api
     #   hdx-scraper-cod-ab-global
-hdx-python-utilities==4.0.0
+hdx-python-utilities==4.0.4
     # via
     #   hdx-python-api
     #   hdx-python-country
@@ -121,9 +121,7 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
     # via jsonschema
 libhxl==5.2.2
-    # via
-    #   hdx-python-api
-    #   hdx-python-country
+    # via hdx-python-country
 loguru==0.7.3
     # via hdx-python-utilities
 makefun==1.16.0
@@ -144,7 +142,7 @@ nodeenv==1.10.0
     # via pre-commit
 num2words==0.5.14
     # via quantulum3
-numpy==2.4.1
+numpy==2.4.2
     # via
     #   geopandas
     #   pandas
@@ -155,12 +153,13 @@ numpy==2.4.1
     #   shapely
 openpyxl==3.1.5
     # via hdx-python-utilities
-packaging==25.0
+packaging==26.0
     # via
     #   geopandas
     #   pyogrio
     #   pytest
-pandas==2.3.3
+    #   wheel
+pandas==3.0.0
     # via
     #   geopandas
     #   hdx-scraper-cod-ab-global
@@ -185,7 +184,7 @@ psycopg==3.3.2
     # via hdx-scraper-cod-ab-global
 psycopg-binary==3.3.2 ; implementation_name != 'pypy'
     # via psycopg
-pyarrow==22.0.0
+pyarrow==23.0.0
     # via hdx-scraper-cod-ab-global
 pydantic==2.12.5
     # via frictionless
@@ -218,8 +217,6 @@ python-slugify==8.0.4
     # via
     #   ckanapi
     #   frictionless
-pytz==2025.2
-    # via pandas
 pyyaml==6.0.3
     # via
     #   frictionless
@@ -247,7 +244,7 @@ requests-file==3.0.1
     # via hdx-python-utilities
 rfc3986==2.0.0
     # via frictionless
-rich==14.2.0
+rich==14.3.2
     # via typer
 rpds-py==0.30.0
     # via
@@ -255,14 +252,14 @@ rpds-py==0.30.0
     #   referencing
 ruamel-yaml==0.19.1
     # via hdx-python-utilities
-ruff==0.14.11
+ruff==0.14.14
 scikit-learn==1.8.0
     # via quantulum3
 scipy==1.17.0
     # via
     #   quantulum3
     #   scikit-learn
-setuptools==80.9.0
+setuptools==80.10.2
     # via ckanapi
 shapely==2.1.2
     # via geopandas
@@ -278,7 +275,7 @@ six==1.17.0
     #   pockets
     #   python-dateutil
     #   sphinxcontrib-napoleon
-soupsieve==2.8.1
+soupsieve==2.8.3
     # via beautifulsoup4
 sphinxcontrib-napoleon==0.7
     # via defopt
@@ -301,7 +298,7 @@ threadpoolctl==3.6.0
     # via scikit-learn
 tomli==2.4.0 ; python_full_version < '4'
     # via taskipy
-tqdm==4.67.1
+tqdm==4.67.2
     # via hdx-scraper-cod-ab-global
 typeguard==4.4.4
     # via inflect
@@ -311,6 +308,7 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   frictionless
+    #   hdx-python-utilities
     #   pydantic
     #   pydantic-core
     #   typeguard
@@ -318,7 +316,7 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
-tzdata==2025.3
+tzdata==2025.3 ; sys_platform == 'emscripten' or sys_platform == 'win32'
     # via
     #   pandas
     #   psycopg
@@ -334,7 +332,7 @@ validators==0.35.0
     # via frictionless
 virtualenv==20.36.1
     # via pre-commit
-wheel==0.45.1
+wheel==0.46.3
     # via libhxl
 wikipedia==1.4.0
     # via quantulum3
@@ -344,7 +342,7 @@ xlrd==2.0.2
     # via hdx-python-utilities
 xlrd3==1.1.0
     # via libhxl
-xlsx2csv==0.8.4
+xlsx2csv==0.8.6
     # via hdx-python-utilities
 xlsxwriter==3.2.9
     # via tableschema-to-template

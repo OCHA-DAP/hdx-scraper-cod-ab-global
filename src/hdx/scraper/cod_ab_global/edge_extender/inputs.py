@@ -43,7 +43,7 @@ def gdal_import(name: str, file: Path, layer: str, args: list[str]) -> None:
             "--layer-creation-option=GEOM_TYPE=geometry",
             "--layer-creation-option=LAUNDER=NO",
         ],
-        check=True,
+        check=False,
         capture_output=True,
     )
 

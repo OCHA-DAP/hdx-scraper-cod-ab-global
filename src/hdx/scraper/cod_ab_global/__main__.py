@@ -1,4 +1,5 @@
 from pathlib import Path
+from shutil import rmtree
 
 from hdx.api.configuration import Configuration
 from hdx.facades.infer_arguments import facade
@@ -40,15 +41,14 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
                 create_pcodes(data_dir)
                 create_pcodes_dataset(data_dir, info)
             create_boundaries(data_dir, run_version, "original")
-            create_boundaries_dataset(data_dir, run_version, "original", info)
             preprocess_extended(data_dir)
             edge_extender(data_dir)
             postprocess_extended(data_dir)
             create_boundaries(data_dir, run_version, "extended")
-            create_boundaries_dataset(data_dir, run_version, "extended", info)
             create_matched(data_dir)
             create_boundaries(data_dir, run_version, "matched")
-            create_boundaries_dataset(data_dir, run_version, "matched", info)
+            create_boundaries_dataset(data_dir, run_version, info)
+            rmtree(data_dir)
 
 
 if __name__ == "__main__":

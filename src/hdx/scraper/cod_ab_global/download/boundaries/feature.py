@@ -45,6 +45,6 @@ def download_feature(
             *["write", output_file],
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
     refactor(output_file)

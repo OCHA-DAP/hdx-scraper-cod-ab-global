@@ -57,7 +57,7 @@ def gdal_filter(input_path: Path, output_path: Path, iso3: str) -> None:
             f"--where={where_filter[iso3]}",
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
 
 

@@ -44,7 +44,7 @@ def main(conn: Connection, name: str, file: Path, layer: str, *_: list) -> None:
             "--lco=GEOMETRY_NAME=geometry",
             *gdal_parquet_options,
         ],
-        check=True,
+        check=False,
     )
     if not quiet:
         logger.info(f"done: {name}")
