@@ -21,8 +21,8 @@ def get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:
     return columns
 
 
-def refactor(output_tmp: Path) -> None:
-    """Refactor file."""
+def standardize_schema(output_tmp: Path) -> None:
+    """Standardize boundary schema."""
     output_file = output_tmp.with_stem(output_tmp.stem.replace("_tmp", ""))
     admin_level = int(output_file.stem[-1])
     iso3 = output_file.stem[0:3].upper()

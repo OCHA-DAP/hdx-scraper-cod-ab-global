@@ -6,7 +6,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from ...config import ATTEMPT, WAIT, gdal_parquet_options
 from ..utils import parse_fields
-from .refactor import refactor
+from .standardize import standardize_schema
 
 
 @retry(stop=stop_after_attempt(ATTEMPT), wait=wait_fixed(WAIT))
@@ -47,4 +47,4 @@ def download_feature(
         ],
         check=False,
     )
-    refactor(output_file)
+    standardize_schema(output_file)

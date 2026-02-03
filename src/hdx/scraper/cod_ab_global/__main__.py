@@ -54,6 +54,6 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
 if __name__ == "__main__":
     facade(
         main,
-        user_agent_config_yaml=str(Path("~").expanduser() / ".useragents.yaml"),
+        user_agent_config_yaml=Path("~").expanduser() / ".useragents.yaml",
         user_agent_lookup=_USER_AGENT_LOOKUP,
     )
