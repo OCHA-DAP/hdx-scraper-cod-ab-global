@@ -2,13 +2,13 @@ from pathlib import Path
 from subprocess import run
 from urllib.parse import urlencode
 
-from ..config import ARCGIS_METADATA_URL
-from ..utils import client_get
-from .refactor_meta import refactor
-from .utils import parse_fields
+from ...config import ARCGIS_METADATA_URL
+from ...utils import client_get
+from ..utils import parse_fields
+from .refactor import refactor
 
 
-def main(data_dir: Path, token: str) -> None:
+def download_metadata(data_dir: Path, token: str) -> None:
     """Download the metadata table from a Feature Layer."""
     params = {"f": "json", "token": token}
     fields = client_get(ARCGIS_METADATA_URL, params).json()["fields"]
@@ -20,7 +20,7 @@ def main(data_dir: Path, token: str) -> None:
         "where": "1=1",
     }
     query_url = f"{ARCGIS_METADATA_URL}/query?{urlencode(query)}"
-    output_file = data_dir / "metadata.parquet"
+    output_file = data_dir / "metadata/global_admin_boundaries_metadata.parquet"
     output_file.parent.mkdir(parents=True, exist_ok=True)
     run(
         [
@@ -31,6 +31,6 @@ def main(data_dir: Path, token: str) -> None:
             "--lco=COMPRESSION_LEVEL=15",
             "--lco=COMPRESSION=ZSTD",
         ],
-        check=False,
+        check=True,
     )
     refactor(output_file)

@@ -1,27 +1,21 @@
-import logging
-import re
 from pathlib import Path
 from subprocess import run
 
 from httpx import Client, Response
-from pandas import read_csv
+from pandas import DataFrame, read_csv
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from .config import (
     ARCGIS_PASSWORD,
     ARCGIS_SERVER,
-    ARCGIS_SERVICE_REGEX,
     ARCGIS_SERVICE_URL,
     ARCGIS_USERNAME,
     ATTEMPT,
     EXPIRATION,
     TIMEOUT,
     WAIT,
-    iso3_exclude,
-    iso3_include,
 )
 
-logger = logging.getLogger(__name__)
 cwd = Path(__file__).parent
 
 
@@ -41,6 +35,18 @@ def get_admin_level_full(iso3: str) -> int:
     return df[(df["country_iso3"] == iso3) & df["version"].isna()].to_dict(
         "records",
     )[0]["admin_level_full"]
+
+
+def get_columns(admin_level: int) -> list[str]:
+    """Get a list of column names for the given admin level."""
+    columns = []
+    for level in range(admin_level, -1, -1):
+        columns += [f"adm{level}_name"]
+        columns += [f"adm{level}_name1", f"adm{level}_name2", f"adm{level}_name3"]
+        columns += [f"adm{level}_pcode"]
+    columns += ["lang", "lang1", "lang2", "lang3"]
+    columns += ["iso2", "iso3", "version", "valid_on", "valid_to", "adm_origin"]
+    return columns
 
 
 def get_feature_server_url(iso3: str) -> str:
@@ -78,19 +84,43 @@ def to_parquet(output_path: Path) -> None:
     output_path.unlink()
 
 
-def get_iso3_list(token: str) -> list[str]:
-    """Get a list of ISO3 codes available on the ArcGIS server."""
-    params = {"f": "json", "token": token}
-    services = client_get(ARCGIS_SERVICE_URL, params=params).json()["services"]
-    p = re.compile(ARCGIS_SERVICE_REGEX)
-    iso3_list = [
-        x["name"][14:17].upper()
-        for x in services
-        if x["type"] == "FeatureServer" and p.search(x["name"])
-    ]
-    return [
-        iso3
-        for iso3 in iso3_list
-        if (not iso3_include or iso3 in iso3_include)
-        and (not iso3_exclude or iso3 not in iso3_exclude)
-    ]
+def save_metadata_files(output_file: Path, df: DataFrame) -> None:
+    """Save metadata in parquet and csv."""
+    df.to_parquet(
+        output_file,
+        compression="zstd",
+        compression_level=15,
+        index=False,
+    )
+    df.to_csv(
+        output_file.with_suffix(".csv"),
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+
+def save_metadata(output_file: Path, df_all: DataFrame) -> None:
+    """Save metadata in with all and latest versions."""
+    save_metadata_files(
+        output_file.with_stem(output_file.stem + "_all"),
+        df_all,
+    )
+    df_latest = df_all.drop_duplicates(subset=["country_iso3"], keep="last")
+    save_metadata_files(
+        output_file.with_stem(output_file.stem + "_latest"),
+        df_latest,
+    )
+    key_columns = ["country_iso3", "version"]
+    df_historic = df_all.merge(
+        df_latest[key_columns],
+        on=key_columns,
+        how="left",
+        indicator=True,
+    )
+    df_historic = df_historic[df_historic["_merge"] == "left_only"].drop(
+        columns=["_merge"],
+    )
+    save_metadata_files(
+        output_file.with_stem(output_file.stem + "_historic"),
+        df_historic,
+    )

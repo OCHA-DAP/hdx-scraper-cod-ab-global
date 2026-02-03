@@ -1,4 +1,4 @@
-FROM ghcr.io/osgeo/gdal:alpine-normal-3.12.0
+FROM alpine:edge
 
 WORKDIR /srv
 
@@ -7,19 +7,31 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 RUN --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    apk add --no-cache python3 && \
+    apk add --no-cache \
+        gdal-driver-parquet \
+        gdal-driver-pg \
+        gdal-tools \
+        postgis \
+        postgresql18-client \
+        python3 && \
     python -m venv /opt/venv && \
     apk add --no-cache --virtual .build-deps \
-    apache-arrow-dev \
-    build-base \
-    cmake \
-    gdal-dev \
-    geos-dev \
-    python3-dev && \
+        build-base \
+        gdal-dev \
+        python3-dev && \
     pip install --no-cache-dir -r requirements.txt && \
     apk del .build-deps && \
-    rm -rf /root/.cache
+    mkdir -p /run/postgresql && \
+    chown -R postgres:postgres /run/postgresql
 
+USER postgres
+
+RUN initdb -D /var/lib/postgresql/data && \
+    pg_ctl start -D /var/lib/postgresql/data && \
+    createdb app && \
+    psql -d app -c "CREATE EXTENSION postgis;"
+
+COPY docker-entrypoint.sh /usr/local/bin/
 COPY src ./src
 
-CMD ["python", "-m", "src.hdx.scraper.cod_ab_global"]
+ENTRYPOINT ["docker-entrypoint.sh", "python", "-m", "hdx.scraper.cod_ab_global"]

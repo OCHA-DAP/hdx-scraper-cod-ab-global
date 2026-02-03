@@ -4,6 +4,8 @@ from subprocess import run
 from geopandas import read_parquet
 from hdx.location.country import Country
 
+from ...config import gdal_parquet_options
+
 
 def get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:
     """Get a list of column names for the given admin level."""
@@ -19,8 +21,8 @@ def get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:
     return columns
 
 
-def refactor(output_tmp: Path) -> None:
-    """Refactor file."""
+def standardize_schema(output_tmp: Path) -> None:
+    """Standardize boundary schema."""
     output_file = output_tmp.with_stem(output_tmp.stem.replace("_tmp", ""))
     admin_level = int(output_file.stem[-1])
     iso3 = output_file.stem[0:3].upper()
@@ -35,23 +37,19 @@ def refactor(output_tmp: Path) -> None:
     gdf["valid_to"] = gdf["valid_to"].astype("date32[pyarrow]")
     gdf[nullable_columns] = gdf[nullable_columns].astype("string")
     gdf = gdf[all_columns]
-    gdf = gdf.sort_values(by=pcode_columns).reset_index()
+    gdf = gdf.sort_values(by=pcode_columns).reset_index(drop=True)
     gdf.to_parquet(
         output_tmp,
         compression_level=15,
         compression="zstd",
         schema_version="1.1.0",
         write_covering_bbox=True,
-        index=False,
     )
     run(
         [
             *["gdal", "vector", "convert"],
             *[output_tmp, output_file],
-            "--overwrite",
-            "--quiet",
-            "--lco=COMPRESSION_LEVEL=15",
-            "--lco=COMPRESSION=ZSTD",
+            *gdal_parquet_options,
         ],
         check=False,
     )
