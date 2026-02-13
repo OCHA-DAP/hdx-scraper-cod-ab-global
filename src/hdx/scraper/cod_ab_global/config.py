@@ -41,6 +41,8 @@ TIMEOUT = int(getenv("TIMEOUT", "60"))
 TIMEOUT_DOWNLOAD = int(getenv("TIMEOUT_DOWNLOAD", "600"))
 EXPIRATION = int(getenv("EXPIRATION", "1440"))  # minutes (1 day)
 
+PCODES_ONLY = _is_bool(getenv("PCODES_ONLY", "false"))
+
 RUN_VERSION = getenv("RUN_VERSION", "LATEST,HISTORIC") or "LATEST,HISTORIC"
 
 run_versions = [x.strip() for x in RUN_VERSION.lower().split(",") if x.strip()]
