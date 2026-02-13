@@ -6,7 +6,7 @@ from ..config import gdal_parquet_options
 from ..utils import get_columns
 
 
-def gdal_clip(input_path: Path, output_path: Path, clip_path: Path) -> None:
+def _gdal_clip(input_path: Path, output_path: Path, clip_path: Path) -> None:
     """Dissolve an admin level down."""
     iso3 = input_path.stem.split("_")[0].upper()
     admin_level = int(input_path.stem[-1])
@@ -43,6 +43,6 @@ def create_matched(data_dir: Path) -> None:
     for input_path in sorted(input_dir.rglob("*.parquet")):
         output_path = output_dir / input_path.parent.name / input_path.name
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        gdal_clip(input_path, output_path, clip_path)
+        _gdal_clip(input_path, output_path, clip_path)
         input_path.unlink()
     rmtree(data_dir / "country/extended")

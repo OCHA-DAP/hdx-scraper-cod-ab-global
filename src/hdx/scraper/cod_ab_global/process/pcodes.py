@@ -24,7 +24,21 @@ headers_lengths = {
 }
 
 
-def get_adm0_pcode_lenths(data_dir: Path) -> DataFrame:
+def _save_outputs(pcodes_dir: Path, stem: str, headers: dict, df: DataFrame) -> None:
+    """Save parquet, plain CSV, and HXL CSV for a dataframe."""
+    df.to_parquet(
+        pcodes_dir / f"{stem}.parquet",
+        index=False,
+        compression_level=15,
+        compression="zstd",
+    )
+    df.to_csv(pcodes_dir / f"{stem}.csv", index=False, encoding="utf-8-sig")
+    concat([DataFrame(headers), df]).to_csv(
+        pcodes_dir / f"{stem}_hxl.csv", index=False, encoding="utf-8-sig"
+    )
+
+
+def _get_adm0_pcode_lenths(data_dir: Path) -> DataFrame:
     """Generate a global p-code length list."""
     df = concat(
         read_parquet(
@@ -39,12 +53,13 @@ def get_adm0_pcode_lenths(data_dir: Path) -> DataFrame:
     return df[["Location", "Country Length"]]
 
 
-def generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df: DataFrame) -> None:
+def _generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df: DataFrame) -> None:
     """Generate a global p-code length list."""
     df = df[
         df.apply(
-            lambda x: x["Admin Level"] == 1
-            or x["P-Code"].startswith(x["Parent P-Code"]),
+            lambda x: (
+                x["Admin Level"] == 1 or x["P-Code"].startswith(x["Parent P-Code"])
+            ),
             axis=1,
         )
     ].copy()
@@ -68,47 +83,17 @@ def generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df: DataFrame) -> N
             },
         )
     )
-    df_country = get_adm0_pcode_lenths(data_dir)
+    df_country = _get_adm0_pcode_lenths(data_dir)
     df_lengths = df_lengths.merge(df_country, on="Location", how="left")
     df_lengths = df_lengths[headers_lengths.keys()]
-    df_lengths.to_parquet(
-        pcodes_dir / "global_pcode_lengths.parquet",
-        index=False,
-        compression_level=15,
-        compression="zstd",
-    )
-    concat([DataFrame(headers_lengths), df_lengths]).to_csv(
-        pcodes_dir / "global_pcode_lengths.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
+    _save_outputs(pcodes_dir, "global_pcode_lengths", headers_lengths, df_lengths)
 
 
-def save_pcodes(pcodes_dir: Path, df_all: DataFrame) -> None:
+def _save_pcodes(pcodes_dir: Path, df_all: DataFrame) -> None:
     """Save global p-code list."""
-    df_all.to_parquet(
-        pcodes_dir / "global_pcodes.parquet",
-        index=False,
-        compression_level=15,
-        compression="zstd",
-    )
-    concat([DataFrame(headers_pcodes), df_all]).to_csv(
-        pcodes_dir / "global_pcodes.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
+    _save_outputs(pcodes_dir, "global_pcodes", headers_pcodes, df_all)
     df_all = df_all[df_all["Admin Level"] <= ADMIN_2]
-    df_all.to_parquet(
-        pcodes_dir / "global_pcodes_adm_1_2.parquet",
-        index=False,
-        compression_level=15,
-        compression="zstd",
-    )
-    concat([DataFrame(headers_pcodes), df_all]).to_csv(
-        pcodes_dir / "global_pcodes_adm_1_2.csv",
-        index=False,
-        encoding="utf-8-sig",
-    )
+    _save_outputs(pcodes_dir, "global_pcodes_adm_1_2", headers_pcodes, df_all)
 
 
 def create_pcodes(data_dir: Path) -> None:
@@ -158,9 +143,9 @@ def create_pcodes(data_dir: Path) -> None:
             .drop_duplicates()
             .drop_duplicates(subset=["P-Code"], keep=False)
         )
-    generate_pcode_lengths(data_dir, pcodes_dir, df_all)
+    _generate_pcode_lengths(data_dir, pcodes_dir, df_all)
     df_all["Parent P-Code"] = df_all.apply(
         lambda x: x["Parent P-Code"] if x["Admin Level"] > 1 else x["Location"],
         axis=1,
     )
-    save_pcodes(pcodes_dir, df_all)
+    _save_pcodes(pcodes_dir, df_all)

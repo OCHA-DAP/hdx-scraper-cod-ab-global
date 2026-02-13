@@ -8,7 +8,7 @@ from psycopg import connect
 from .config import dbname
 
 
-def get_gpkg_layers(file: Path) -> list[str]:
+def _get_gpkg_layers(file: Path) -> list[str]:
     """Get list of layers in GeoPackage."""
     query = """
         SELECT table_name, geometry_type_name
@@ -23,7 +23,7 @@ def get_gpkg_layers(file: Path) -> list[str]:
     return layers
 
 
-def is_polygon(file: Path) -> bool:
+def _is_polygon(file: Path) -> bool:
     """Check if file is a polygon."""
     regex = re.compile(r"\((?:Multi )?Polygon\)")
     result = run(

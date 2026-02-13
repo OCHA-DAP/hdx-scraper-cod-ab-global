@@ -27,7 +27,7 @@ query_2: LiteralString = """--sql
 """
 
 
-def gdal_import(name: str, file: Path, layer: str, args: list[str]) -> None:
+def _gdal_import(name: str, file: Path, layer: str, args: list[str]) -> None:
     """Import geodata into PostGIS."""
     run(
         [
@@ -51,9 +51,9 @@ def gdal_import(name: str, file: Path, layer: str, args: list[str]) -> None:
 def main(conn: Connection, name: str, file: Path, layer: str, *_: list) -> None:
     """Import geodata into PostGIS with topology cleaning."""
     try:
-        gdal_import(name, file, layer, ["set-geom-type", "--quiet"])
+        _gdal_import(name, file, layer, ["set-geom-type", "--quiet"])
     except CalledProcessError:
-        gdal_import(name, file, layer, ["geom", "set-type"])
+        _gdal_import(name, file, layer, ["geom", "set-type"])
     conn.execute(
         SQL(query_1).format(
             table_in=Identifier(f"{name}_attr"),

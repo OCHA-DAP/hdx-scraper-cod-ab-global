@@ -133,13 +133,13 @@ columns = [
 ]
 
 
-def merge_unique(df1: DataFrame, df2: DataFrame, columns: list[str]) -> DataFrame:
+def _merge_unique(df1: DataFrame, df2: DataFrame, columns: list[str]) -> DataFrame:
     """Merge two dataframes and keep only unique rows from df1."""
     merged_df = df1.merge(df2[columns], on=columns, how="left", indicator=True)
     return merged_df[merged_df["_merge"] == "left_only"].drop(columns=["_merge"])
 
 
-def df_filter(df: DataFrame) -> DataFrame:
+def _df_filter(df: DataFrame) -> DataFrame:
     """Filter DataFrame from iso3 include and exclude lists."""
     iso3_include_all = [x for x in iso3_include if len(x) == ISO3_LEN]
     iso3_exclude_all = [x for x in iso3_exclude if len(x) == ISO3_LEN]
@@ -154,7 +154,7 @@ def refactor(output_file: Path) -> None:
     """Refactor file."""
     df = read_parquet(output_file)
     df = df.rename(columns=column_rename)
-    df_extra = merge_unique(DataFrame(extra_rows), df, ["country_iso3", "version"])
+    df_extra = _merge_unique(DataFrame(extra_rows), df, ["country_iso3", "version"])
     df = concat([df, df_extra], ignore_index=True)
     for key, value in source_updates.items():
         df.loc[df["country_iso3"] == key, "source"] = value
@@ -176,7 +176,7 @@ def refactor(output_file: Path) -> None:
     df[count_columns] = df[count_columns].astype("Int32")
     df = df[df["version"] != ""]
     df = df[df["admin_level_max"].gt(0)]
-    df = df_filter(df)
+    df = _df_filter(df)
     df = df[columns].sort_values(by=["country_iso3", "version"])
     save_metadata(output_file, df)
     output_file.unlink()

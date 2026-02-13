@@ -1,17 +1,11 @@
-#########################
-# Project Configuration #
-#########################
-
-# Project name and version needed to run tests
-
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
 
 [project]
 name = "hdx-scraper-cod-ab-global"
-requires-python = ">=3.13"
 dynamic = ["version"]
+requires-python = ">=3.13"
 dependencies = [
     "fsspec>=2025.12.0",
     "geopandas",
@@ -29,10 +23,38 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pre-commit", "pytest-cov", "pytest", "ruff", "taskipy"]
+dev = ["pre-commit", "pytest", "pytest-cov", "ruff", "taskipy"]
+
+[tool.hatch]
+version.source = "uv-dynamic-versioning"
+build.hooks.version.path = "src/hdx/scraper/cod_ab_global/_version.py"
+build.targets.wheel.packages = ["src/hdx"]
+
+[tool.pytest.ini_options]
+addopts = "--color=yes"
+log_cli = true
+pythonpath = "src"
+
+[tool.ruff]
+exclude = ["_version.py"]
+fix = true
+lint.select = ["ALL"]
+lint.ignore = [
+    "COM812",
+    "D100",
+    "D104",
+    "D203",
+    "D213",
+    "INP001",
+    "PD010",
+    "S603",
+    "S607",
+    "S608",
+    "TID252",
+]
 
 [tool.taskipy.tasks]
 # uv run task app
-app = "python -m hdx.scraper.cod_ab_global"
-export = "uv sync -q && uv export -o requirements.txt -q --no-dev --no-emit-project --no-hashes && uv export -o requirements-dev.txt -q --no-emit-project --no-hashes"
+app = "python run.py"
 ruff = "ruff format && ruff check && ruff format"
+test = "pytest --rootdir=. --junitxml=test-results.xml --cov --no-cov-on-fail --cov-report=lcov --cov-report=term-missing"

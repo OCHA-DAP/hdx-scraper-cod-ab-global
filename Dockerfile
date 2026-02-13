@@ -3,10 +3,14 @@ FROM alpine:edge
 WORKDIR /srv
 
 ENV PATH="/opt/venv/bin:$PATH"
-ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV UV_LINK_MODE=copy
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 
-RUN --mount=type=bind,source=requirements.txt,target=requirements.txt \
+RUN --mount=type=bind,source=pyproject.toml,target=/srv/pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=/srv/uv.lock \
+    --mount=type=bind,source=src,target=/srv/src,rw \
+    --mount=type=bind,source=.git,target=/srv/.git \
     apk add --no-cache \
         gdal-driver-parquet \
         gdal-driver-pg \
@@ -14,12 +18,13 @@ RUN --mount=type=bind,source=requirements.txt,target=requirements.txt \
         postgis \
         postgresql18-client \
         python3 && \
-    python -m venv /opt/venv && \
     apk add --no-cache --virtual .build-deps \
         build-base \
         gdal-dev \
-        python3-dev && \
-    pip install --no-cache-dir -r requirements.txt && \
+        git \
+        python3-dev \
+        uv && \
+    uv sync --frozen --no-dev --no-editable && \
     apk del .build-deps && \
     mkdir -p /run/postgresql && \
     chown -R postgres:postgres /run/postgresql

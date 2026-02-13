@@ -10,7 +10,7 @@ from .boundaries_utils import compare_gdb
 cwd = Path(__file__).parent
 
 
-def get_dataset_info(run_version: str) -> dict:
+def _get_dataset_info(run_version: str) -> dict:
     """Get dataset info for a dataset."""
     name_extra = ""
     title_extra = ""
@@ -38,7 +38,7 @@ def get_dataset_info(run_version: str) -> dict:
     }
 
 
-def get_resource(run_version: str, stage: str) -> dict:
+def _get_resource(run_version: str, stage: str) -> dict:
     """Get resource info for a dataset."""
     resources = {
         "matched": {
@@ -65,7 +65,7 @@ def get_resource(run_version: str, stage: str) -> dict:
     return resources[stage]
 
 
-def get_notes(admin_count: int, run_version: str) -> str:
+def _get_notes(admin_count: int, run_version: str) -> str:
     """Get notes for a dataset."""
     other_link = (
         "[historic boundaries](https://data.humdata.org/dataset/cod-ab-global-historic)"
@@ -99,7 +99,7 @@ def get_notes(admin_count: int, run_version: str) -> str:
     )
 
 
-def initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
+def _initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
     """Initialize a dataset."""
     df = read_parquet(
         data_dir / f"metadata/global_admin_boundaries_metadata_{run_version}.parquet",
@@ -108,8 +108,8 @@ def initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
     start_date = df[df["date_valid_on"].notna()]["date_valid_on"].min().isoformat()
     end_date = df[df["date_reviewed"].notna()]["date_reviewed"].max().isoformat()
     layer_count = len(df)
-    dataset_info = get_dataset_info(run_version)
-    dataset_info["notes"] = get_notes(layer_count, run_version)
+    dataset_info = _get_dataset_info(run_version)
+    dataset_info["notes"] = _get_notes(layer_count, run_version)
     dataset = Dataset(dataset_info)
     dataset.update_from_yaml(path=cwd / "../config/hdx_dataset_static.yaml")
     dataset.add_other_location("world")
@@ -118,7 +118,7 @@ def initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
     return dataset
 
 
-def add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Dataset:
+def _add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Dataset:
     """Add resources to a dataset."""
     resource_data["p_coded"] = "True"
     resource = Resource(resource_data)
@@ -132,7 +132,7 @@ def add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Data
     return dataset
 
 
-def add_metadata_resource(
+def _add_metadata_resource(
     data_dir: Path,
     run_version: str,
     dataset: Dataset,
@@ -149,7 +149,7 @@ def add_metadata_resource(
     return dataset
 
 
-def dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
+def _dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
     """Create a dataset in HDX."""
     dataset.create_in_hdx(
         remove_additional_resources=False,
@@ -163,9 +163,9 @@ def dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
 def create_boundaries_dataset(data_dir: Path, run_version: str, info: dict) -> None:
     """Create a dataset for the world."""
     for stage in ["matched", "original", "extended"]:
-        dataset = initialize_dataset(data_dir, run_version)
-        resource = get_resource(run_version, stage)
-        dataset = add_resources(data_dir, dataset, resource)
-        dataset_create_in_hdx(dataset, info)
-    dataset = initialize_dataset(data_dir, run_version)
-    dataset = add_metadata_resource(data_dir, run_version, dataset)
+        dataset = _initialize_dataset(data_dir, run_version)
+        resource = _get_resource(run_version, stage)
+        dataset = _add_resources(data_dir, dataset, resource)
+        _dataset_create_in_hdx(dataset, info)
+    dataset = _initialize_dataset(data_dir, run_version)
+    dataset = _add_metadata_resource(data_dir, run_version, dataset)

@@ -7,7 +7,7 @@ from hdx.location.country import Country
 from ...config import gdal_parquet_options
 
 
-def get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:
+def _get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:
     """Get a list of column names for the given admin level."""
     columns = []
     for level in range(admin_level, -1, -1):
@@ -26,8 +26,8 @@ def standardize_schema(output_tmp: Path) -> None:
     output_file = output_tmp.with_stem(output_tmp.stem.replace("_tmp", ""))
     admin_level = int(output_file.stem[-1])
     iso3 = output_file.stem[0:3].upper()
-    all_columns = get_columns(admin_level)
-    nullable_columns = get_columns(admin_level, only_nullable=True)
+    all_columns = _get_columns(admin_level)
+    nullable_columns = _get_columns(admin_level, only_nullable=True)
     pcode_columns = [f"adm{x}_pcode" for x in range(admin_level, -1, -1)]
     gdf = read_parquet(output_tmp)
     gdf = gdf.rename(columns={"cod_version": "version"}, errors="ignore")

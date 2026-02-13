@@ -17,7 +17,7 @@ environ["OGR_ORGANIZE_POLYGONS"] = "ONLY_CCW"
 environ["PYOGRIO_USE_ARROW"] = "1"
 
 
-def is_bool(string: str) -> bool:
+def _is_bool(string: str) -> bool:
     """Check if a string is boolean-like."""
     return string.upper() in ("YES", "TRUE", "ON", "1")
 

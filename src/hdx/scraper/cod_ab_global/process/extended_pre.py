@@ -8,7 +8,7 @@ from pandas import read_parquet
 from ..config import gdal_parquet_options, where_filter
 
 
-def get_input_path(
+def _get_input_path(
     data_path: Path,
     layer: Path,
     iso3: str,
@@ -48,7 +48,7 @@ def get_input_path(
     return None
 
 
-def gdal_filter(input_path: Path, output_path: Path, iso3: str) -> None:
+def _gdal_filter(input_path: Path, output_path: Path, iso3: str) -> None:
     """Run gdal concat."""
     run(
         [
@@ -68,7 +68,7 @@ def preprocess_extended(data_path: Path) -> None:
     for layer in sorted((data_path / "country/original").glob("cod_ab_*")):
         iso3 = layer.name.split("_")[2].upper()
         version = layer.name.split("_")[-1]
-        input_path = get_input_path(data_path, layer, iso3, version)
+        input_path = _get_input_path(data_path, layer, iso3, version)
         if input_path is None:
             continue
         output_path = (
@@ -76,7 +76,7 @@ def preprocess_extended(data_path: Path) -> None:
             / input_path.with_stem(input_path.stem.replace("_", f"_{version}_")).name
         )
         if iso3 in where_filter:
-            gdal_filter(input_path, output_path, iso3)
+            _gdal_filter(input_path, output_path, iso3)
         else:
             copy(input_path, output_path)
         rmtree(layer)
