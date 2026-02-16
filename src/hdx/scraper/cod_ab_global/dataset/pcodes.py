@@ -45,6 +45,29 @@ resources = [
         "name": "global_pcode_lengths.csv",
         "description": "P-code lengths for all countries at all levels.",
     },
+    {
+        "name": "global_pcodes_hxl.csv",
+        "description": (
+            "Table contains the 3-digit ISO code, admin level, p-code, "
+            "administrative name, parent p-code, and date. Includes HXL hashtags."
+        ),
+        "p_coded": "True",
+    },
+    {
+        "name": "global_pcodes_adm_1_2_hxl.csv",
+        "description": (
+            "Data for admin levels 1 and 2. Table contains the 3-digit ISO code, "
+            "admin level, p-code, administrative name, parent p-code, and date. "
+            "Includes HXL hashtags."
+        ),
+        "p_coded": "True",
+    },
+    {
+        "name": "global_pcode_lengths_hxl.csv",
+        "description": (
+            "P-code lengths for all countries at all levels. Includes HXL hashtags."
+        ),
+    },
 ]
 
 

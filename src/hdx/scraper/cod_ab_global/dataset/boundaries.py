@@ -169,3 +169,4 @@ def create_boundaries_dataset(data_dir: Path, run_version: str, info: dict) -> N
         _dataset_create_in_hdx(dataset, info)
     dataset = _initialize_dataset(data_dir, run_version)
     dataset = _add_metadata_resource(data_dir, run_version, dataset)
+    _dataset_create_in_hdx(dataset, info)
