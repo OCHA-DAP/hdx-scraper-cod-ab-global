@@ -59,7 +59,7 @@ def initialize_dataset(data_dir: Path) -> Dataset:
     dataset = Dataset(dataset_info)
     dataset.update_from_yaml(path=str(cwd / "../config/hdx_dataset_static.yaml"))
     dataset.add_other_location("world")
-    dataset.add_tags(["administrative boundaries-divisions", "hxl"])
+    dataset.add_tags(["administrative boundaries-divisions"])
     dataset.set_time_period(start_date, end_date)
     return dataset
 
@@ -81,7 +81,6 @@ def create_pcodes_dataset(data_dir: Path, info: dict) -> None:
     dataset.create_in_hdx(
         remove_additional_resources=True,
         match_resource_order=True,
-        hxl_update=False,
         updated_by_script=UPDATED_BY_SCRIPT,
         batch=info["batch"],
     )
