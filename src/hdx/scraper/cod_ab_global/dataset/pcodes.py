@@ -17,10 +17,16 @@ dataset_info = {
         "CSV containing subnational p-codes, their corresponding administrative names, "
         "parent p-codes, and reference dates for the world (where available). "
         "Latin names are used where available."
+        "\n  \n  "
+        "For actual boundaries: [Global Subnational Administrative Boundaries](https://data.humdata.org/dataset/cod-ab-global)"
     ),
     "methodology_other": (
         "P-codes taken from the latest administrative boundary layers available on the "
-        "OCHA ISS ArcGIS server (gis.unocha.org)."
+        "OCHA ArcGIS server (gis.unocha.org)."
+    ),
+    "caveats": (
+        "There may be a delay of a few days between when new country boundaries "
+        "are added to HDX and when they are aggregated into this global dataset."
     ),
 }
 

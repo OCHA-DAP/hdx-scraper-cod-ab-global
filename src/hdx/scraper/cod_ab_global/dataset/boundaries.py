@@ -22,13 +22,16 @@ def _get_dataset_info(run_version: str) -> dict:
         "title": f"OCHA Global Subnational Administrative Boundaries{title_extra}",
         "methodology_other": (
             f"Data taken from {run_version} administrative boundary layers available "
-            "on the UN OCHA ISS ArcGIS server (gis.unocha.org). Edge-extending of "
-            "original geometries done using an algorithm "
+            "on the UN OCHA ArcGIS server (gis.unocha.org). Edge-extending of "
+            "original geometries are automatically applied using an algorithm "
             "(github.com/fieldmaps/edge-extender). "
-            "Edge-matching done using UN Geodata 1:1M international boundaries "
+            "Edge-matching is applied against UN Geodata 1:1M international boundaries "
             "(geohub.un.org)."
         ),
         "caveats": (
+            "There may be a delay of a few days between when new country boundaries "
+            "are added to HDX and when they are aggregated into this global dataset."
+            "  \n  \n"
             "In the extended and edge-matched resources, lower levels are filled in "
             "with higher ones if they don't exist. Example: Admin 2 is used to fill in "
             "Admin 3 and 4 if they don't exist. Also, only layers with full coverage "
@@ -72,6 +75,15 @@ def _get_notes(admin_count: int, run_version: str) -> str:
         if run_version == "latest"
         else "[latest boundaries](https://data.humdata.org/dataset/cod-ab-global)"
     )
+    global_pcodes = (
+        (
+            "  \n  \n"
+            "For a list of P-codes for use in data collection such as ODK / Kobo, see "
+            "[Global P-code List](https://data.humdata.org/dataset/global-pcodes)"
+        )
+        if run_version == "latest"
+        else ""
+    )
     return (
         "Global administrative level 0-4 boundaries (COD-AB) dataset for "
         f"{admin_count} countries / territories, {run_version} versions."
@@ -96,6 +108,7 @@ def _get_notes(admin_count: int, run_version: str) -> str:
         "Metadata about sources used is also available as a table."
         "  \n  \n"
         f"A version of this dataset is also available with {other_link}."
+        f"{global_pcodes}"
     )
 
 

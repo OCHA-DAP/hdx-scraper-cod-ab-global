@@ -11,6 +11,7 @@ headers_pcodes = {
     "Name": ["#adm+name"],
     "Parent P-Code": ["#adm+code+parent"],
     "Valid from date": ["#date+start"],
+    "Version": ["#meta+version"],
 }
 
 headers_lengths = {
@@ -117,6 +118,7 @@ def create_pcodes(data_dir: Path) -> None:
                     f"adm{level - 1}_pcode",
                     "iso3",
                     "valid_on",
+                    "version",
                 ],
             )
             for file_path in sorted(
@@ -130,6 +132,7 @@ def create_pcodes(data_dir: Path) -> None:
             "iso3": "Location",
             f"adm{level}_pcode": "P-Code",
             "valid_on": "Valid from date",
+            "version": "Version",
         }
         df = df.rename(columns=rename_columns)
         df = df[headers_pcodes.keys()]
