@@ -154,7 +154,6 @@ def dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
     dataset.create_in_hdx(
         remove_additional_resources=False,
         match_resource_order=False,
-        hxl_update=False,
         updated_by_script=UPDATED_BY_SCRIPT,
         batch=info["batch"],
     )
