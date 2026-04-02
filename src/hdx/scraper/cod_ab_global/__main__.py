@@ -5,7 +5,7 @@ from hdx.api.configuration import Configuration
 from hdx.facades.infer_arguments import facade
 from hdx.utilities.path import wheretostart_tempdir_batch
 
-from .config import run_versions
+from .config import PCODES_ONLY, run_versions
 from .dataset.boundaries import create_boundaries_dataset
 from .dataset.pcodes import create_pcodes_dataset
 from .download.admin0 import download_admin0
@@ -40,6 +40,9 @@ def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, F
             if run_version == "latest":
                 create_pcodes(data_dir)
                 create_pcodes_dataset(data_dir, info)
+                if PCODES_ONLY:
+                    rmtree(data_dir)
+                    return
             create_boundaries(data_dir, run_version, "original")
             preprocess_extended(data_dir)
             edge_extender(data_dir)

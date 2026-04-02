@@ -17,10 +17,16 @@ dataset_info = {
         "CSV containing subnational p-codes, their corresponding administrative names, "
         "parent p-codes, and reference dates for the world (where available). "
         "Latin names are used where available."
+        "\n  \n  "
+        "For actual boundaries: [Global Subnational Administrative Boundaries](https://data.humdata.org/dataset/cod-ab-global)"
     ),
     "methodology_other": (
         "P-codes taken from the latest administrative boundary layers available on the "
-        "OCHA ISS ArcGIS server (gis.unocha.org)."
+        "OCHA ArcGIS server (gis.unocha.org)."
+    ),
+    "caveats": (
+        "There may be a delay of a few days between when new country boundaries "
+        "are added to HDX and when they are aggregated into this global dataset."
     ),
 }
 
@@ -45,10 +51,33 @@ resources = [
         "name": "global_pcode_lengths.csv",
         "description": "P-code lengths for all countries at all levels.",
     },
+    {
+        "name": "global_pcodes_hxl.csv",
+        "description": (
+            "Table contains the 3-digit ISO code, admin level, p-code, "
+            "administrative name, parent p-code, and date. Includes HXL hashtags."
+        ),
+        "p_coded": "True",
+    },
+    {
+        "name": "global_pcodes_adm_1_2_hxl.csv",
+        "description": (
+            "Data for admin levels 1 and 2. Table contains the 3-digit ISO code, "
+            "admin level, p-code, administrative name, parent p-code, and date. "
+            "Includes HXL hashtags."
+        ),
+        "p_coded": "True",
+    },
+    {
+        "name": "global_pcode_lengths_hxl.csv",
+        "description": (
+            "P-code lengths for all countries at all levels. Includes HXL hashtags."
+        ),
+    },
 ]
 
 
-def initialize_dataset(data_dir: Path) -> Dataset:
+def _initialize_dataset(data_dir: Path) -> Dataset:
     """Initialize a dataset."""
     df = read_parquet(
         data_dir / "pcodes/global_pcodes.parquet",
@@ -64,7 +93,7 @@ def initialize_dataset(data_dir: Path) -> Dataset:
     return dataset
 
 
-def add_resources(data_dir: Path, dataset: Dataset) -> Dataset:
+def _add_resources(data_dir: Path, dataset: Dataset) -> Dataset:
     """Add resources to a dataset."""
     for resource_data in resources:
         resource = Resource(resource_data)
@@ -76,8 +105,8 @@ def add_resources(data_dir: Path, dataset: Dataset) -> Dataset:
 
 def create_pcodes_dataset(data_dir: Path, info: dict) -> None:
     """Create a dataset for the world."""
-    dataset = initialize_dataset(data_dir)
-    dataset = add_resources(data_dir, dataset)
+    dataset = _initialize_dataset(data_dir)
+    dataset = _add_resources(data_dir, dataset)
     dataset.create_in_hdx(
         remove_additional_resources=True,
         match_resource_order=True,

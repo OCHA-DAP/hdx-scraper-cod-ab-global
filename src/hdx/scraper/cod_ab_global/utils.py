@@ -26,7 +26,7 @@ def client_get(url: str, params: dict | None = None) -> Response:
         return client.get(url, params=params)
 
 
-def get_admin_level_full(iso3: str) -> int:
+def _get_admin_level_full(iso3: str) -> int:
     """Get admin level with full country coverage.
 
     TODO: change custon CSV to Parquet once metadata is ready.
@@ -49,7 +49,7 @@ def get_columns(admin_level: int) -> list[str]:
     return columns
 
 
-def get_feature_server_url(iso3: str) -> str:
+def _get_feature_server_url(iso3: str) -> str:
     """Get a url for a feature server."""
     return f"{ARCGIS_SERVICE_URL}/cod_ab_{iso3.lower()}/FeatureServer"
 
@@ -69,7 +69,7 @@ def generate_token() -> str:
         return r["token"]
 
 
-def to_parquet(output_path: Path) -> None:
+def _to_parquet(output_path: Path) -> None:
     """Convert to GeoParquet."""
     run(
         [
@@ -84,7 +84,7 @@ def to_parquet(output_path: Path) -> None:
     output_path.unlink()
 
 
-def save_metadata_files(output_file: Path, df: DataFrame) -> None:
+def _save_metadata_files(output_file: Path, df: DataFrame) -> None:
     """Save metadata in parquet and csv."""
     df.to_parquet(
         output_file,
@@ -101,12 +101,12 @@ def save_metadata_files(output_file: Path, df: DataFrame) -> None:
 
 def save_metadata(output_file: Path, df_all: DataFrame) -> None:
     """Save metadata in with all and latest versions."""
-    save_metadata_files(
+    _save_metadata_files(
         output_file.with_stem(output_file.stem + "_all"),
         df_all,
     )
     df_latest = df_all.drop_duplicates(subset=["country_iso3"], keep="last")
-    save_metadata_files(
+    _save_metadata_files(
         output_file.with_stem(output_file.stem + "_latest"),
         df_latest,
     )
@@ -120,7 +120,7 @@ def save_metadata(output_file: Path, df_all: DataFrame) -> None:
     df_historic = df_historic[df_historic["_merge"] == "left_only"].drop(
         columns=["_merge"],
     )
-    save_metadata_files(
+    _save_metadata_files(
         output_file.with_stem(output_file.stem + "_historic"),
         df_historic,
     )

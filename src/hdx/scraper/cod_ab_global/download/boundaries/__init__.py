@@ -11,7 +11,7 @@ from ...utils import client_get
 from .feature import download_feature
 
 
-def download_layers(output_dir: Path, url: str, params: dict, layers: dict) -> None:
+def _download_layers(output_dir: Path, url: str, params: dict, layers: dict) -> None:
     """Download all ESRIJSON from a Feature Service."""
     for layer in layers:
         if layer["type"] == "Feature Layer":
@@ -22,7 +22,7 @@ def download_layers(output_dir: Path, url: str, params: dict, layers: dict) -> N
 
 
 @retry(stop=stop_after_attempt(ATTEMPT), wait=wait_fixed(WAIT))
-def download_services(data_dir: Path, params: dict, iso3: str, version: str) -> None:
+def _download_services(data_dir: Path, params: dict, iso3: str, version: str) -> None:
     """Download all ESRIJSON from Feature Services for a country and version."""
     service_name_out = f"cod_ab_{iso3.lower()}_{version}"
     output_dir = data_dir / "country" / "original" / service_name_out
@@ -35,7 +35,7 @@ def download_services(data_dir: Path, params: dict, iso3: str, version: str) -> 
         service_name_in = service_name_out.replace("_v", "_v_")
         service_url = f"{ARCGIS_SERVICE_URL}/{service_name_in}/FeatureServer"
         layers = client_get(service_url, params).json()["layers"]
-    download_layers(output_dir, service_url, params, layers)
+    _download_layers(output_dir, service_url, params, layers)
     file_list = sorted(output_dir.glob("*.parquet"))
     if file_list and file_list[-1].stem[-1] == "0":
         rmtree(output_dir)
@@ -51,4 +51,4 @@ def download_boundaries(data_dir: Path, token: str, run_version: str) -> None:
     pbar = tqdm(services)
     for iso3, version in pbar:
         pbar.set_description(f"{iso3} {version}")
-        download_services(data_dir, params, iso3, version)
+        _download_services(data_dir, params, iso3, version)
