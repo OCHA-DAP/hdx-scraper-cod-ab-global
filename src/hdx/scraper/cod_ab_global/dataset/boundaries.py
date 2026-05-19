@@ -9,6 +9,8 @@ from .boundaries_utils import compare_gdb
 
 cwd = Path(__file__).parent
 
+_BREAK = "  \n  \n"
+
 
 def _get_dataset_info(run_version: str) -> dict:
     """Get dataset info for a dataset."""
@@ -17,27 +19,35 @@ def _get_dataset_info(run_version: str) -> dict:
     if run_version != "latest":
         name_extra = f"-{run_version}"
         title_extra = f" ({run_version.title()})"
+    methodology = (
+        "Data taken from administrative boundary layers available on HDX."
+        " Edge-extending of original geometries is automatically applied using"
+        " an [algorithm](github.com/fieldmaps/edge-extender)."
+        " Extended boundaries are then clipped against international boundaries to"
+        " achieve edge-matching."
+    )
+    caveats = _BREAK.join(
+        [
+            (
+                "There may be a delay of a few days between when new country"
+                " boundaries are added to HDX and when they are aggregated"
+                " into this global dataset."
+            ),
+            (
+                "In the extended and edge-matched resources, lower levels are"
+                " filled in with higher ones if they don't exist. Example:"
+                " Admin 2 is used to fill in Admin 3 and 4 if they don't"
+                " exist. Also, only layers with full coverage are used for"
+                " these two resources. Example: if Admin 3 only covers part"
+                " of a location, Admin 2 is used instead."
+            ),
+        ]
+    )
     return {
         "name": f"cod-ab-global{name_extra}",
-        "title": f"OCHA Global Subnational Administrative Boundaries{title_extra}",
-        "methodology_other": (
-            f"Data taken from {run_version} administrative boundary layers available "
-            "on the UN OCHA ArcGIS server (gis.unocha.org). Edge-extending of "
-            "original geometries are automatically applied using an algorithm "
-            "(github.com/fieldmaps/edge-extender). "
-            "Edge-matching is applied against UN Geodata 1:1M international boundaries "
-            "(geohub.un.org)."
-        ),
-        "caveats": (
-            "There may be a delay of a few days between when new country boundaries "
-            "are added to HDX and when they are aggregated into this global dataset."
-            "  \n  \n"
-            "In the extended and edge-matched resources, lower levels are filled in "
-            "with higher ones if they don't exist. Example: Admin 2 is used to fill in "
-            "Admin 3 and 4 if they don't exist. Also, only layers with full coverage "
-            "are used for these two resources. Example: if Admin 3 only covers part of "
-            "a location, Admin 2 is used instead."
-        ),
+        "title": f"Global - Subnational Administrative Boundaries{title_extra}",
+        "methodology_other": methodology,
+        "caveats": caveats,
     }
 
 
@@ -75,41 +85,43 @@ def _get_notes(admin_count: int, run_version: str) -> str:
         if run_version == "latest"
         else "[latest boundaries](https://data.humdata.org/dataset/cod-ab-global)"
     )
-    global_pcodes = (
+    paragraphs = [
         (
-            "  \n  \n"
+            f"Global administrative level 1-4 boundaries (COD-AB) dataset for "
+            f"{admin_count} countries / territories, {run_version} versions."
+        ),
+        (
+            "This is an aggregation of "
+            "[subnational administrative boundaries](https://data.humdata.org/dataset/?cod_level=cod-enhanced&res_format=GeoJSON)"
+            " available in 3 variations:"
+        ),
+        (
+            "**Edge-Matched**: Subnational boundaries are aligned to fit international"
+            " boundaries. This process results in simplification at the international"
+            " border, but gaps and overlaps are eliminated. The internal resolution of"
+            " each subnational boundary layer is not modified by this process."
+            " Recommended to use for most use cases."
+        ),
+        (
+            "**Original**: Subnational boundaries are unmodified from their original "
+            "source. There will be gaps and overlaps at the international border. "
+            "Recommended if maintaining the integrity of the initial source is"
+            " important."
+        ),
+        (
+            "**Extended**: A specialty output with extended boundaries. This is an "
+            " intermediate step in the process before edge-matching. Recommended"
+            " for organizations which have specific international boundary needs."
+        ),
+        "Metadata about sources used is also available as a table.",
+        f"A version of this dataset is also available with {other_link}.",
+    ]
+    if run_version == "latest":
+        paragraphs.append(
             "For a list of P-codes for use in data collection such as ODK / Kobo, see "
             "[Global P-code List](https://data.humdata.org/dataset/global-pcodes)"
         )
-        if run_version == "latest"
-        else ""
-    )
-    return (
-        "Global administrative level 0-4 boundaries (COD-AB) dataset for "
-        f"{admin_count} countries / territories, {run_version} versions."
-        "  \n  \n"
-        "This is an aggregation of "
-        "[subnational administrative boundaries](https://data.humdata.org/dataset/?cod_level=cod-enhanced&res_format=GeoJSON)"
-        " available in 3 variations:"
-        "  \n  \n"
-        "**Edge-Matched**: Subnational boundaries are aligned to fit UN Geodata 1:1M "
-        "international boundaries. This process results in simplification at the "
-        "international border, but gaps and overlaps are eliminated. The internal "
-        "resolution of each subnational boundary layer is not modified by this "
-        "process. Recommended to use for most use cases."
-        "  \n  \n"
-        "**Original**: Subnational boundaries are unmodified from their original "
-        "source. There will be gaps and overlaps at the international border. "
-        "Recomended if maintaining the integrity of the initial source is important."
-        "  \n  \n"
-        "**Extended**: A specialty output to help those performing their own "
-        "edge-matching when not using UN Geodata 1:1M international boundaries."
-        "  \n  \n"
-        "Metadata about sources used is also available as a table."
-        "  \n  \n"
-        f"A version of this dataset is also available with {other_link}."
-        f"{global_pcodes}"
-    )
+    return _BREAK.join(paragraphs)
 
 
 def _initialize_dataset(data_dir: Path, run_version: str) -> Dataset:

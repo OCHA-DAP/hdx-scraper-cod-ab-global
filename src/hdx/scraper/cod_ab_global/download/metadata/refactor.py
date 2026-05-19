@@ -56,6 +56,7 @@ contributor_updates = {
 }
 
 admin_level_full_updates = [
+    ("COD", "v01", 3),
     ("KGZ", "v01", 1),
     ("PHL", "v03", 3),
     ("QAT", "v01", 1),
