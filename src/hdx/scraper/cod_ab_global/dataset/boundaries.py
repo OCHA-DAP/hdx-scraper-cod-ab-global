@@ -109,9 +109,9 @@ def _get_notes(admin_count: int, run_version: str) -> str:
             " important."
         ),
         (
-            "**Extended**: A specialty output with extended boundaries. This is an "
-            " intermediate step in the process before edge-matching. Recommended"
-            " for organizations which have specific international boundary needs."
+            "**Extended**: This is an intermediate step in the process before"
+            " edge-matching. Recommended for organizations with specific international"
+            " boundary needs."
         ),
         "Metadata about sources used is also available as a table.",
         f"A version of this dataset is also available with {other_link}.",
