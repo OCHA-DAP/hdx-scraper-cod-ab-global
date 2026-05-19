@@ -22,7 +22,7 @@ def _get_dataset_info(run_version: str) -> dict:
     methodology = (
         "Data taken from administrative boundary layers available on HDX."
         " Edge-extending of original geometries is automatically applied using"
-        " an [algorithm](github.com/fieldmaps/edge-extender)."
+        " an [algorithm](https://github.com/fieldmaps/edge-extender)."
         " Extended boundaries are then clipped against international boundaries to"
         " achieve edge-matching."
     )
