@@ -41,6 +41,8 @@ def create_matched(data_dir: Path) -> None:
     output_dir = data_dir / "country/matched"
     clip_path = data_dir / "bnda_cty.parquet"
     for input_path in sorted(input_dir.rglob("*.parquet")):
+        if input_path.stem[-1] == "0":
+            continue
         output_path = output_dir / input_path.parent.name / input_path.name
         output_path.parent.mkdir(parents=True, exist_ok=True)
         _gdal_clip(input_path, output_path, clip_path)
