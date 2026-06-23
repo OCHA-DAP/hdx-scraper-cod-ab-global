@@ -12,13 +12,14 @@ from subprocess import run as _run
 from textwrap import dedent
 
 import geoparquet_io as gpio
+import yaml
 
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
     SOURCECOOP_REMOTE,
 )
-from .utils import fetch_json, generate_token, list_services
+from .utils import fetch_json, fetch_metadata_table, generate_token, list_services
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,56 @@ def _write_catalog_metadata(catalog_dir: Path) -> None:
     )
 
 
-def _extract_service(service_name: str, token: str, catalog_dir: Path) -> None:
+def _write_service_metadata(
+    service_dir: Path, service_name: str, meta: dict | None
+) -> None:
+    """Write .portolan/metadata.yaml for a service (subcatalog)."""
+    if not meta:
+        return
+
+    content: dict = {}
+
+    contributor = (meta.get("contributor") or "").strip()
+    source = (meta.get("source") or "").strip()
+    if contributor and source:
+        content["attribution"] = f"{contributor} / {source}"
+    elif contributor or source:
+        content["attribution"] = contributor or source
+
+    content["source_url"] = f"{ARCGIS_SERVICES_URL}/{service_name}/FeatureServer"
+
+    version = (meta.get("version") or "").strip()
+    if version:
+        content["upstream_version"] = version
+
+    caveats = (meta.get("caveats") or "").strip()
+    if caveats:
+        content["known_issues"] = caveats
+
+    notes = (meta.get("admin_notes") or "").strip()
+    if notes:
+        content["processing_notes"] = notes
+
+    date_valid_on = (meta.get("date_valid_on") or "").strip()
+    date_valid_to = (meta.get("date_valid_to") or "").strip() or None
+    if date_valid_on:
+        temporal: dict = {"start": date_valid_on}
+        if date_valid_to:
+            temporal["end"] = date_valid_to
+        content["defaults"] = {"temporal": temporal}
+
+    portolan_dir = service_dir / ".portolan"
+    portolan_dir.mkdir(exist_ok=True)
+    (portolan_dir / "metadata.yaml").write_text(
+        yaml.dump(
+            content, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+    )
+
+
+def _extract_service(
+    service_name: str, token: str, catalog_dir: Path, metadata: dict[str, dict]
+) -> None:
     """Extract all layers for one COD-AB service to GeoParquet."""
     service_url = f"{ARCGIS_SERVICES_URL}/{service_name}/FeatureServer"
     data = fetch_json(service_url, token)
@@ -73,6 +123,9 @@ def _extract_service(service_name: str, token: str, catalog_dir: Path) -> None:
         table = gpio.extract_arcgis(layer_url, token=token)
         table = table.sort_hilbert()
         table.write(out_path, compression_level=22, geoparquet_version="2.0")
+
+    meta = metadata.get(service_name.lower())
+    _write_service_metadata(service_dir, service_name, meta)
 
 
 def _remove_stale_services(services: list[str], catalog_dir: Path) -> None:
@@ -101,9 +154,11 @@ def run(work_dir: Path) -> None:
     token = generate_token()
     services = list_services(token)
     logger.info("Found %d COD-AB services", len(services))
+    metadata = fetch_metadata_table(token)
+    logger.info("Fetched metadata for %d services", len(metadata))
 
     for service_name in sorted(services):
-        _extract_service(service_name, token, catalog_dir)
+        _extract_service(service_name, token, catalog_dir, metadata)
 
     _write_catalog_metadata(catalog_dir)
 
