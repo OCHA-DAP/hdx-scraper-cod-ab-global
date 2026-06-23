@@ -1,9 +1,11 @@
+"""Post-process edge-extended boundaries by dissolving and copying admin levels."""
+
 from pathlib import Path
 from shutil import rmtree
 from subprocess import run
 
-from ..config import gdal_parquet_options
-from ..utils import get_columns
+from hdx.scraper.cod_ab_global.config import gdal_parquet_options
+from hdx.scraper.cod_ab_global.utils import get_columns
 
 
 def _get_extra_columns(admin_level: int) -> list[str]:

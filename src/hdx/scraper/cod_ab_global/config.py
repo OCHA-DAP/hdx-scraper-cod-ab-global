@@ -1,3 +1,5 @@
+"""Global configuration and environment variable parsing for the COD-AB scraper."""
+
 import logging
 from os import environ, getenv
 

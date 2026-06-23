@@ -1,3 +1,5 @@
+"""Merge extended boundary edges back into the original polygon geometries."""
+
 from typing import LiteralString
 
 from psycopg import Connection

@@ -1,3 +1,5 @@
+"""Remove temporary database tables after edge extension processing."""
+
 from typing import LiteralString
 
 from psycopg import Connection

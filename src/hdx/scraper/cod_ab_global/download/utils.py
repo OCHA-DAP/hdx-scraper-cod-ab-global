@@ -1,3 +1,5 @@
+"""Utilities for parsing ArcGIS field metadata from Feature Service responses."""
+
 OBJECTID = "esriFieldTypeOID"
 
 

@@ -1,3 +1,5 @@
+"""Pipeline orchestration for the COD-AB global scraper."""
+
 from pathlib import Path
 from shutil import rmtree
 

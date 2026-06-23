@@ -1,3 +1,5 @@
+"""Topology validation checks for gaps and overlaps in boundary geometries."""
+
 from venv import logger
 
 from psycopg import Connection

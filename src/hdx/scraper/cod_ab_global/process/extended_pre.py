@@ -1,3 +1,5 @@
+"""Pre-process boundaries before edge extension by selecting the highest admin level."""
+
 from pathlib import Path
 from shutil import copy, rmtree
 from subprocess import run
@@ -5,7 +7,7 @@ from venv import logger
 
 from pandas import read_parquet
 
-from ..config import gdal_parquet_options, where_filter
+from hdx.scraper.cod_ab_global.config import gdal_parquet_options, where_filter
 
 
 def _get_input_path(

@@ -1,3 +1,5 @@
+"""Service and layer discovery for downloading country boundary data from ArcGIS."""
+
 import logging
 from pathlib import Path
 from re import search
@@ -7,9 +9,14 @@ from pandas import read_parquet
 from tenacity import retry, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 
-from ...config import ARCGIS_LAYER_REGEX, ARCGIS_SERVICE_URL, ATTEMPT, WAIT
-from ...utils import client_get, generate_token
-from .feature import download_feature
+from hdx.scraper.cod_ab_global.config import (
+    ARCGIS_LAYER_REGEX,
+    ARCGIS_SERVICE_URL,
+    ATTEMPT,
+    WAIT,
+)
+from hdx.scraper.cod_ab_global.download.boundaries.feature import download_feature
+from hdx.scraper.cod_ab_global.utils import client_get, generate_token
 
 logger = logging.getLogger(__name__)
 

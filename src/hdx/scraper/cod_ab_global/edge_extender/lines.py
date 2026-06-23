@@ -1,3 +1,5 @@
+"""Extract boundary line segments from polygon geometries for edge extension."""
+
 from typing import LiteralString
 
 from psycopg import Connection

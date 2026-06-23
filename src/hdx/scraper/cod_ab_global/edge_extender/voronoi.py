@@ -1,3 +1,5 @@
+"""Voronoi diagram generation for edge extension boundary calculations."""
+
 from typing import LiteralString
 
 from psycopg import Connection

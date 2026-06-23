@@ -1,3 +1,5 @@
+"""Point geometry operations used during edge extension."""
+
 from decimal import Decimal
 from pathlib import Path
 from typing import LiteralString

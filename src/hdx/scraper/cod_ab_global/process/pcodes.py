@@ -1,3 +1,5 @@
+"""Generate the global P-codes dataset from downloaded country admin boundary layers."""
+
 from pathlib import Path
 
 from pandas import DataFrame, concat, read_parquet
@@ -72,7 +74,12 @@ def _generate_pcode_lengths(data_dir: Path, pcodes_dir: Path, df: DataFrame) -> 
         df.groupby(["Location", "Admin Level"])["P-Code Length"]
         .apply(lambda x: "|".join([str(i) for i in sorted(x.unique())]))
         .reset_index()
-        .pivot(index="Location", columns="Admin Level", values="P-Code Length")
+        .pivot_table(
+            index="Location",
+            columns="Admin Level",
+            values="P-Code Length",
+            aggfunc="first",
+        )
         .reset_index()
         .rename(
             columns={

@@ -1,3 +1,5 @@
+"""Shared utility functions for the edge extender module."""
+
 import re
 import sqlite3
 from pathlib import Path

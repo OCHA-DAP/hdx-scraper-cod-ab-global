@@ -1,3 +1,5 @@
+"""Entry point that re-launches with uv if not already in a virtual environment."""
+
 import runpy
 import subprocess
 import sys

@@ -1,3 +1,5 @@
+"""Consolidate country boundary layers into a global File Geodatabase."""
+
 from pathlib import Path
 from shutil import make_archive, rmtree
 from subprocess import run

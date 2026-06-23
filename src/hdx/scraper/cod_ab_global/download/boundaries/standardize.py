@@ -1,10 +1,12 @@
+"""Standardize column schema for downloaded boundary layers."""
+
 from pathlib import Path
 from subprocess import run
 
 from geopandas import read_parquet
 from hdx.location.country import Country
 
-from ...config import gdal_parquet_options
+from hdx.scraper.cod_ab_global.config import gdal_parquet_options
 
 
 def _get_columns(admin_level: int, *, only_nullable: bool = False) -> list[str]:

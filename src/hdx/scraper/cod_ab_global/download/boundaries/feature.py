@@ -1,12 +1,14 @@
+"""Download a single ESRIJSON feature layer and convert it to GeoParquet."""
+
 from pathlib import Path
 from subprocess import run
 from urllib.parse import urlencode
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from ...config import ATTEMPT, WAIT, gdal_parquet_options
-from ..utils import parse_fields
-from .standardize import standardize_schema
+from hdx.scraper.cod_ab_global.config import ATTEMPT, WAIT, gdal_parquet_options
+from hdx.scraper.cod_ab_global.download.boundaries.standardize import standardize_schema
+from hdx.scraper.cod_ab_global.download.utils import parse_fields
 
 
 @retry(stop=stop_after_attempt(ATTEMPT), wait=wait_fixed(WAIT))

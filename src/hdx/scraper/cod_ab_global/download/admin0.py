@@ -1,10 +1,12 @@
+"""Download Admin 0 boundaries from the FIS ArcGIS Feature Service."""
+
 from pathlib import Path
 from subprocess import run
 from urllib.parse import urlencode
 
-from ..config import ARCGIS_ADM0_URL, gdal_parquet_options
-from ..utils import client_get
-from .utils import parse_fields
+from hdx.scraper.cod_ab_global.config import ARCGIS_ADM0_URL, gdal_parquet_options
+from hdx.scraper.cod_ab_global.download.utils import parse_fields
+from hdx.scraper.cod_ab_global.utils import client_get
 
 
 def download_admin0(data_dir: Path, token: str) -> None:

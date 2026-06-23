@@ -1,3 +1,5 @@
+"""Shared HTTP client utilities, token generation, and file helpers."""
+
 from pathlib import Path
 from subprocess import run
 

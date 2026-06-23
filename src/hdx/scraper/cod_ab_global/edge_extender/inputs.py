@@ -1,3 +1,5 @@
+"""Load and prepare input geometries for edge extension processing."""
+
 from pathlib import Path
 from subprocess import CalledProcessError, run
 from typing import LiteralString

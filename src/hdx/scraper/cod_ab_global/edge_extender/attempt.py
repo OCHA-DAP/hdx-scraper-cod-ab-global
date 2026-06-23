@@ -1,3 +1,5 @@
+"""Iteratively extend boundary edges using configurable distance parameters."""
+
 from pathlib import Path
 from venv import logger
 

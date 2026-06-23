@@ -1,3 +1,5 @@
+"""Write edge-extended geometries to output GeoParquet files."""
+
 from pathlib import Path
 from subprocess import run
 from typing import LiteralString
@@ -6,7 +8,8 @@ from venv import logger
 from psycopg import Connection
 from psycopg.sql import SQL, Identifier
 
-from ..config import gdal_parquet_options
+from hdx.scraper.cod_ab_global.config import gdal_parquet_options
+
 from .config import dbname, quiet
 from .topology import check_gaps, check_overlaps
 

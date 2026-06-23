@@ -1,3 +1,5 @@
+"""Configuration and environment variable parsing for the edge extender module."""
+
 from decimal import Decimal
 from logging import INFO, basicConfig
 from os import environ, getenv

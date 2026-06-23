@@ -1,11 +1,13 @@
+"""Create and upload global administrative boundaries datasets to HDX."""
+
 from pathlib import Path
 
 from hdx.data.dataset import Dataset
 from hdx.data.resource import Resource
 from pandas import read_parquet
 
-from ..config import UPDATED_BY_SCRIPT
-from .boundaries_utils import compare_gdb
+from hdx.scraper.cod_ab_global.config import UPDATED_BY_SCRIPT
+from hdx.scraper.cod_ab_global.dataset.boundaries_utils import compare_gdb
 
 cwd = Path(__file__).parent
 

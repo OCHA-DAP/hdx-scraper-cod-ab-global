@@ -1,3 +1,5 @@
+"""Create and upload the global P-codes dataset to HDX."""
+
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import rmtree
@@ -6,7 +8,7 @@ from hdx.data.dataset import Dataset
 from hdx.data.resource import Resource
 from pandas import read_parquet
 
-from ..config import UPDATED_BY_SCRIPT
+from hdx.scraper.cod_ab_global.config import UPDATED_BY_SCRIPT
 
 cwd = Path(__file__).parent
 

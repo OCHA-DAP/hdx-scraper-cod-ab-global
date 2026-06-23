@@ -1,3 +1,5 @@
+"""Self-contained edge extension module for filling gaps at international borders."""
+
 from pathlib import Path
 from shutil import rmtree
 from venv import logger

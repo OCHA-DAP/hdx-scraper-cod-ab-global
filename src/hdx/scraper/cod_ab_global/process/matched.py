@@ -1,9 +1,11 @@
+"""Generate edge-matched boundaries by clipping extended layers to UN boundaries."""
+
 from pathlib import Path
 from shutil import rmtree
 from subprocess import run
 
-from ..config import gdal_parquet_options
-from ..utils import get_columns
+from hdx.scraper.cod_ab_global.config import gdal_parquet_options
+from hdx.scraper.cod_ab_global.utils import get_columns
 
 
 def _gdal_clip(input_path: Path, output_path: Path, clip_path: Path) -> None:
