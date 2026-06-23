@@ -66,10 +66,6 @@ def _extract_service(service_name: str, token: str, catalog_dir: Path) -> None:
         layer_dir = service_dir / layer_name
         out_path = layer_dir / f"{layer_name}.parquet"
 
-        if out_path.exists():
-            logger.info("Skipping %s/%s (already extracted)", service_name, layer_name)
-            continue
-
         layer_dir.mkdir(parents=True, exist_ok=True)
         layer_url = f"{service_url}/{layer_id}"
         logger.info("Extracting %s", layer_url)
@@ -77,6 +73,17 @@ def _extract_service(service_name: str, token: str, catalog_dir: Path) -> None:
         table = gpio.extract_arcgis(layer_url, token=token)
         table = table.sort_hilbert()
         table.write(out_path, compression="ZSTD", compression_level=15)
+
+
+def _remove_stale_services(services: list[str], catalog_dir: Path) -> None:
+    """Remove service directories no longer present in ArcGIS."""
+    current = {s.lower() for s in services}
+    for path in sorted(catalog_dir.iterdir()):
+        if not path.is_dir() or path.name.startswith("."):
+            continue
+        if path.name not in current:
+            logger.info("Removing stale service %s", path.name)
+            _portolan(["rm", "--force", f"{path.name}/"], cwd=catalog_dir)
 
 
 def run(work_dir: Path) -> None:
@@ -101,12 +108,16 @@ def run(work_dir: Path) -> None:
     _write_catalog_metadata(catalog_dir)
 
     workers = str(PORTOLAN_WORKERS)
-    if not (catalog_dir / ".portolan" / "config.yaml").exists():
+    portolan_initialized = (catalog_dir / ".portolan" / "config.yaml").exists()
+    if portolan_initialized:
+        _remove_stale_services(services, catalog_dir)
+    else:
         _portolan(
             ["init", "--title", "COD-AB Original Boundaries", "--auto"],
             cwd=catalog_dir,
         )
     _portolan(["add", ".", "--workers", workers, "--pmtiles"], cwd=catalog_dir)
+    _portolan(["stac-geoparquet"], cwd=catalog_dir)
     _portolan(["check", "--metadata", "--fix"], cwd=catalog_dir)
     _portolan(["readme"], cwd=catalog_dir)
     _portolan(["push", "--workers", workers, "--verbose"], cwd=catalog_dir)
