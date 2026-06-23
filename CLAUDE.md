@@ -251,6 +251,53 @@ Mirrors COD-AB ArcGIS services to source.coop. Run with:
 uv run python -m hdx.scraper.cod_ab_global.portolan
 ```
 
+### Local patch: geoparquet-io int32→timestamp cast (geoparquet-io#516)
+
+**`uv sync` will overwrite this patch — re-apply it if Niger extraction starts failing again.**
+
+`cod_ab_ner_v01` has date fields (`valid_on`, `valid_to`) where epoch-zero values cause DuckDB to infer `int32` instead of `int64`. PyArrow cannot cast `int32 → timestamp` directly. The fix (cast via `int64` as intermediate) is patched into the installed `.venv` copy:
+
+File: `.venv/lib/python3.14/site-packages/geoparquet_io/core/arcgis.py`, just before the `page_table.cast(target_schema, safe=True)` call (~line 1140). Insert this upcast block:
+
+```python
+# Upcast int32 → int64 where the target is timestamp, before casting.
+# DuckDB infers int32 for epoch-zero date values; PyArrow cannot cast
+# int32 → timestamp directly (needs int64). (geoparquet-io#516)
+for i in range(page_table.num_columns):
+    if (
+        pa.types.is_timestamp(target_schema.field(i).type)
+        and page_table.schema.field(i).type == pa.int32()
+    ):
+        page_table = page_table.set_column(
+            i,
+            target_schema.field(i).name,
+            page_table.column(i).cast(pa.int64()),
+        )
+```
+
+Once geoparquet-io#516 is merged and released, upgrade the package and remove this note.
+
+### Workaround: geoparquet-io HTTP timeout (geoparquet-io#518)
+
+The default HTTP timeout in geoparquet_io is 60s, which is too short for large polygon layers (e.g. Philippines admin1 regions). `portolan/__main__.py` wraps `make_request_with_retry` in `arcgis.py`'s module namespace to raise the default to 300s:
+
+```python
+import functools
+import geoparquet_io.core.arcgis as _gpio_arcgis
+
+_orig_request = _gpio_arcgis.make_request_with_retry
+
+@functools.wraps(_orig_request)
+def _patched_request(*args, timeout=300.0, **kwargs):
+    return _orig_request(*args, timeout=timeout, **kwargs)
+
+_gpio_arcgis.make_request_with_retry = _patched_request
+```
+
+Patching `geoparquet_io.core.http_retry.DEFAULT_TIMEOUT` does **not** work — the timeout default is baked into the function at definition time, and `arcgis.py` holds a direct reference to the original function object.
+
+Once geoparquet-io#518 is resolved (timeout parameter on `arcgis_to_table`), pass `timeout=300` to `gpio.extract_arcgis()` and remove the monkey-patch.
+
 ### Known limitations (upstream portolan-cli issues)
 
 Two features are missing from `portolan extract arcgis` and tracked upstream:

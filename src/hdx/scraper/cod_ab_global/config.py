@@ -61,6 +61,10 @@ admin_level_full_overrides = {
     "PHL": 4,
 }
 
+date_valid_on_overrides = {
+    "UKR": "2025-09-01",
+}
+
 where_filter = {
     "LBN": "adm1_pcode <> 'Conflict'",
     "PAK": "adm1_pcode not in ('PK1', 'PK3')",

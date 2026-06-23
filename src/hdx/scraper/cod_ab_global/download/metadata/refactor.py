@@ -2,10 +2,12 @@
 
 from pathlib import Path
 
+import pandas as pd
 from pandas import DataFrame, read_parquet
 
 from hdx.scraper.cod_ab_global.config import (
     admin_level_full_overrides,
+    date_valid_on_overrides,
     iso3_exclude,
     iso3_include,
 )
@@ -74,6 +76,9 @@ def refactor(output_file: Path) -> None:
     df["admin_level_full"] = df["admin_level_full"].astype("Int32")
     for iso3, level in admin_level_full_overrides.items():
         df.loc[df["country_iso3"] == iso3, "admin_level_full"] = level
+    for iso3, date in date_valid_on_overrides.items():
+        mask = (df["country_iso3"] == iso3) & df["date_valid_on"].isna()
+        df.loc[mask, "date_valid_on"] = pd.Timestamp(date)
     df[count_columns] = df[count_columns].astype("Int32")
     df = _df_filter(df)
     df = df[columns].sort_values(by=["country_iso3", "version"])

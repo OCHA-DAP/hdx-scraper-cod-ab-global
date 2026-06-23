@@ -9,6 +9,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from subprocess import CalledProcessError
 from subprocess import run as _run
 from textwrap import dedent
 
@@ -18,7 +19,6 @@ import yaml
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
-    SOURCECOOP_REMOTE,
 )
 from .utils import fetch_json, fetch_metadata_table, generate_token, list_services
 
@@ -208,8 +208,6 @@ def run(work_dir: Path) -> None:
     catalog_dir = work_dir / "original"
     catalog_dir.mkdir(parents=True, exist_ok=True)
 
-    (catalog_dir / ".env").write_text(f"PORTOLAN_REMOTE={SOURCECOOP_REMOTE}\n")
-
     token = generate_token()
     services = list_services(token)
     logger.info("Found %d COD-AB services", len(services))
@@ -222,10 +220,19 @@ def run(work_dir: Path) -> None:
     _write_catalog_metadata(catalog_dir)
 
     workers = str(PORTOLAN_WORKERS)
-    portolan_initialized = (catalog_dir / ".portolan" / "config.yaml").exists()
-    if portolan_initialized:
+    portolan_operational = (catalog_dir / ".portolan" / "config.yaml").exists() and (
+        catalog_dir / "catalog.json"
+    ).exists()
+    if portolan_operational:
         _remove_stale_services(services, catalog_dir)
     else:
+        # Remove stale config.yaml so portolan init can run cleanly.
+        # A partial previous run may have written config.yaml without ever
+        # completing catalog.json (e.g. if portolan add failed).
+        portolan_config = catalog_dir / ".portolan" / "config.yaml"
+        if portolan_config.exists():
+            portolan_config.unlink()
+            logger.info("Removed stale .portolan/config.yaml to allow clean init")
         _portolan(
             ["init", "--title", "COD-AB Original Boundaries", "--auto"],
             cwd=catalog_dir,
@@ -236,10 +243,17 @@ def run(work_dir: Path) -> None:
         args = ["add", f"{service_name.lower()}/", "--workers", workers, "--pmtiles"]
         if date_valid_on:
             args += ["--datetime", date_valid_on]
-        _portolan(args, cwd=catalog_dir)
+        try:
+            _portolan(args, cwd=catalog_dir)
+        except CalledProcessError:
+            logger.exception("portolan add failed for %s — skipping", service_name)
+            continue
         if meta:
             _enrich_service_catalog(catalog_dir / service_name.lower(), meta)
-    _portolan(["stac-geoparquet"], cwd=catalog_dir)
+    try:
+        _portolan(["stac-geoparquet"], cwd=catalog_dir)
+    except CalledProcessError:
+        logger.warning("portolan stac-geoparquet: no items in catalog — skipping")
     _portolan(["check", "--metadata", "--fix"], cwd=catalog_dir)
     _portolan(["readme"], cwd=catalog_dir)
     _portolan(["push", "--workers", workers, "--verbose"], cwd=catalog_dir)

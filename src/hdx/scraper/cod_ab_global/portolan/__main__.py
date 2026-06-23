@@ -9,15 +9,29 @@ Optional:
   SOURCECOOP_REMOTE       override S3 destination
 """
 
+import functools
 import logging
 import os
 from pathlib import Path
 from tempfile import mkdtemp
+from typing import Any
 
 os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
 
-from .config import PORTOLAN_WORK_DIR
-from .mirror import run
+import geoparquet_io.core.arcgis as _gpio_arcgis
+
+_orig_request = _gpio_arcgis.make_request_with_retry
+
+
+@functools.wraps(_orig_request)
+def _patched_request(*args: Any, timeout: float = 300.0, **kwargs: Any) -> Any:  # noqa: ANN401
+    return _orig_request(*args, timeout=timeout, **kwargs)
+
+
+_gpio_arcgis.make_request_with_retry = _patched_request
+
+from .config import PORTOLAN_WORK_DIR  # noqa: E402
+from .mirror import run  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
