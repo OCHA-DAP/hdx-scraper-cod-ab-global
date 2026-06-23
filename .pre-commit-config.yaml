@@ -10,4 +10,3 @@ repos:
     hooks:
       - id: ruff-format
       - id: ruff-check
-      - id: ruff-format
