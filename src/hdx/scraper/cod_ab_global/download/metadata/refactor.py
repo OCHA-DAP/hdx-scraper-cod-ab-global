@@ -4,8 +4,12 @@ from pathlib import Path
 
 from pandas import DataFrame, read_parquet
 
-from ...config import iso3_exclude, iso3_include
-from ...utils import save_metadata
+from hdx.scraper.cod_ab_global.config import (
+    admin_level_full_overrides,
+    iso3_exclude,
+    iso3_include,
+)
+from hdx.scraper.cod_ab_global.utils import save_metadata
 
 ISO3_LEN = 3
 
@@ -68,8 +72,9 @@ def refactor(output_file: Path) -> None:
     df = read_parquet(output_file)
     df["country_name"] = df["country_name"].str.replace("\u2019", "'", regex=False)
     df["admin_level_full"] = df["admin_level_full"].astype("Int32")
+    for iso3, level in admin_level_full_overrides.items():
+        df.loc[df["country_iso3"] == iso3, "admin_level_full"] = level
     df[count_columns] = df[count_columns].astype("Int32")
-    df = df[df["admin_level_max"].gt(0)]
     df = _df_filter(df)
     df = df[columns].sort_values(by=["country_iso3", "version"])
     save_metadata(output_file, df)
