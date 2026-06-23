@@ -5,6 +5,7 @@ CLI does not expose auth options), then portolan for catalog management
 and S3 push.
 """
 
+import json
 import logging
 import sys
 from pathlib import Path
@@ -52,6 +53,56 @@ def _write_catalog_metadata(catalog_dir: Path) -> None:
             source_url: {ARCGIS_SERVICES_URL}
         """)
     )
+
+
+# All meaningful fields from COD_Global_Metadata (mirrors refactor.py's column list).
+# Written as cod_ab:* custom STAC properties so the table is reconstructable from
+# the catalog.
+_COD_AB_METADATA_FIELDS = [
+    "country_name",
+    "country_iso2",
+    "country_iso3",
+    "version",
+    "admin_level_full",
+    "admin_level_max",
+    "admin_1_name",
+    "admin_2_name",
+    "admin_3_name",
+    "admin_4_name",
+    "admin_5_name",
+    "admin_1_count",
+    "admin_2_count",
+    "admin_3_count",
+    "admin_4_count",
+    "admin_5_count",
+    "admin_notes",
+    "date_source",
+    "date_updated",
+    "date_reviewed",
+    "date_metadata",
+    "date_valid_on",
+    "date_valid_to",
+    "update_frequency",
+    "update_type",
+    "source",
+    "contributor",
+    "methodology_dataset",
+    "methodology_pcodes",
+    "caveats",
+]
+
+
+def _enrich_service_catalog(service_dir: Path, meta: dict) -> None:
+    """Write COD_Global_Metadata fields as cod_ab:* properties in catalog.json."""
+    catalog_path = service_dir / "catalog.json"
+    if not catalog_path.exists():
+        return
+    data = json.loads(catalog_path.read_text())
+    for field in _COD_AB_METADATA_FIELDS:
+        value = meta.get(field)
+        if value is not None and str(value).strip():
+            data[f"cod_ab:{field}"] = value
+    catalog_path.write_text(json.dumps(data, indent=2))
 
 
 def _write_service_metadata(
@@ -171,7 +222,15 @@ def run(work_dir: Path) -> None:
             ["init", "--title", "COD-AB Original Boundaries", "--auto"],
             cwd=catalog_dir,
         )
-    _portolan(["add", ".", "--workers", workers, "--pmtiles"], cwd=catalog_dir)
+    for service_name in sorted(services):
+        meta = metadata.get(service_name.lower())
+        date_valid_on = (meta.get("date_valid_on") or "").strip() if meta else ""
+        args = ["add", f"{service_name.lower()}/", "--workers", workers, "--pmtiles"]
+        if date_valid_on:
+            args += ["--datetime", date_valid_on]
+        _portolan(args, cwd=catalog_dir)
+        if meta:
+            _enrich_service_catalog(catalog_dir / service_name.lower(), meta)
     _portolan(["stac-geoparquet"], cwd=catalog_dir)
     _portolan(["check", "--metadata", "--fix"], cwd=catalog_dir)
     _portolan(["readme"], cwd=catalog_dir)
