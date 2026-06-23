@@ -7,7 +7,6 @@ Requires env vars (via .env or shell):
 Optional:
   PORTOLAN_WORK_DIR       persistent work directory (enables resume on re-run)
   SOURCECOOP_REMOTE       override S3 destination
-  ARCGIS_SERVICES_FILTER  glob filter for service names (default: cod_ab_*)
 """
 
 import logging

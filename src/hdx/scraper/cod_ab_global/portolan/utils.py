@@ -1,6 +1,6 @@
 """ArcGIS HTTP helpers for token generation, JSON fetching, and service discovery."""
 
-from fnmatch import fnmatch
+import re
 
 import httpx
 
@@ -8,12 +8,15 @@ from .config import (
     ARCGIS_EXPIRATION,
     ARCGIS_PASSWORD,
     ARCGIS_SERVER,
-    ARCGIS_SERVICES_FILTER,
     ARCGIS_SERVICES_URL,
     ARCGIS_TIMEOUT,
     ARCGIS_TOKEN_URL,
     ARCGIS_USERNAME,
 )
+
+# Matches cod_ab_<ISO3> and cod_ab_<ISO3>_v<N> — excludes non-country entries
+# like COD_AB_Style_Template.
+_SERVICE_RE = re.compile(r"^cod_ab_[a-z]{3}(_v\d+)?$", re.IGNORECASE)
 
 
 def generate_token() -> str:
@@ -42,7 +45,7 @@ def fetch_json(url: str, token: str) -> dict:
 
 
 def list_services(token: str) -> list[str]:
-    """Return service names matching ARCGIS_SERVICES_FILTER from the Hosted folder."""
+    """Return COD-AB service names (cod_ab_<ISO3> and versioned) from Hosted."""
     data = fetch_json(ARCGIS_SERVICES_URL, token)
     results = []
     for s in data.get("services", []):
@@ -50,6 +53,6 @@ def list_services(token: str) -> list[str]:
             continue
         # Names are returned as "Hosted/service_name" — strip the folder prefix
         name = s["name"].split("/")[-1]
-        if fnmatch(name.lower(), ARCGIS_SERVICES_FILTER.lower()):
+        if _SERVICE_RE.match(name):
             results.append(name)
     return results

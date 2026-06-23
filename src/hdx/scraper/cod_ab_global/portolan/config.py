@@ -12,7 +12,6 @@ ARCGIS_SERVICES_URL = f"{ARCGIS_SERVER}/server/rest/services/Hosted"
 ARCGIS_TOKEN_URL = f"{ARCGIS_SERVER}/portal/sharing/rest/generateToken"
 ARCGIS_USERNAME = getenv("ARCGIS_USERNAME", "")
 ARCGIS_PASSWORD = getenv("ARCGIS_PASSWORD", "")
-ARCGIS_SERVICES_FILTER = getenv("ARCGIS_SERVICES_FILTER", "cod_ab_*")
 ARCGIS_EXPIRATION = int(getenv("ARCGIS_EXPIRATION", "1440"))
 ARCGIS_TIMEOUT = int(getenv("ARCGIS_TIMEOUT", "60"))
 
