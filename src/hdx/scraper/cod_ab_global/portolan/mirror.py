@@ -168,10 +168,18 @@ def _extract_service(
         out_path = layer_dir / f"{layer_name}.parquet"
 
         layer_dir.mkdir(parents=True, exist_ok=True)
+        if out_path.exists():
+            logger.debug("Skipping existing %s", out_path)
+            continue
+
         layer_url = f"{service_url}/{layer_id}"
         logger.info("Extracting %s", layer_url)
 
-        table = gpio.extract_arcgis(layer_url, token=token)
+        try:
+            table = gpio.extract_arcgis(layer_url, token=token)
+        except Exception:
+            logger.exception("Failed to extract %s — skipping layer", layer_url)
+            continue
         table = table.sort_hilbert()
         table.write(out_path, compression_level=22, geoparquet_version="2.0")
 
