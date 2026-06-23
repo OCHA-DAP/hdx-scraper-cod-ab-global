@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from re import search
 from shutil import rmtree
@@ -7,8 +8,10 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 
 from ...config import ARCGIS_LAYER_REGEX, ARCGIS_SERVICE_URL, ATTEMPT, WAIT
-from ...utils import client_get
+from ...utils import client_get, generate_token
 from .feature import download_feature
+
+logger = logging.getLogger(__name__)
 
 
 def _download_layers(output_dir: Path, url: str, params: dict, layers: dict) -> None:
@@ -30,11 +33,29 @@ def _download_services(data_dir: Path, params: dict, iso3: str, version: str) ->
     try:
         service_name_in = service_name_out
         service_url = f"{ARCGIS_SERVICE_URL}/{service_name_in}/FeatureServer"
-        layers = client_get(service_url, params).json()["layers"]
+        response = client_get(service_url, params).json()
+        if "layers" not in response:
+            logger.warning(
+                "No 'layers' in response for %s: %s — refreshing token",
+                service_url,
+                response,
+            )
+            params["token"] = generate_token()
+            response = client_get(service_url, params).json()
+        layers = response["layers"]
     except KeyError:
         service_name_in = service_name_out.replace("_v", "_v_")
         service_url = f"{ARCGIS_SERVICE_URL}/{service_name_in}/FeatureServer"
-        layers = client_get(service_url, params).json()["layers"]
+        response = client_get(service_url, params).json()
+        if "layers" not in response:
+            logger.warning(
+                "No 'layers' in response for %s: %s — refreshing token",
+                service_url,
+                response,
+            )
+            params["token"] = generate_token()
+            response = client_get(service_url, params).json()
+        layers = response["layers"]
     _download_layers(output_dir, service_url, params, layers)
     file_list = sorted(output_dir.glob("*.parquet"))
     if file_list and file_list[-1].stem[-1] == "0":

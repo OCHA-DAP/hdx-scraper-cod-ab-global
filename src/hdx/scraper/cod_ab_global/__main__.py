@@ -25,17 +25,24 @@ _USER_AGENT_LOOKUP = "hdx-scraper-cod-global"
 _SAVED_DATA_DIR = (cwd / "../../../../saved_data").resolve()
 
 
-def main(save: bool = True, use_saved: bool = False) -> None:  # noqa: FBT001, FBT002
+def main(
+    save: bool = True,  # noqa: FBT001, FBT002
+    use_saved: bool = False,  # noqa: FBT001, FBT002
+    metadata_only: bool = False,  # noqa: FBT001, FBT002
+) -> None:
     """Generate datasets and create them in HDX."""
     Configuration.read()
     with wheretostart_tempdir_batch(folder=_USER_AGENT_LOOKUP) as info:
         temp_dir = info["folder"]
         data_dir = Path(_SAVED_DATA_DIR if save or use_saved else temp_dir)
         data_dir.mkdir(parents=True, exist_ok=True)
+        token = generate_token()
+        download_metadata(data_dir, token)
+        if metadata_only:
+            return
         for run_version in run_versions:
             token = generate_token()
             download_admin0(data_dir, token)
-            download_metadata(data_dir, token)
             download_boundaries(data_dir, token, run_version)
             if run_version == "latest":
                 create_pcodes(data_dir)
