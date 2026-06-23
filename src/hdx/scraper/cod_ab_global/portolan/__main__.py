@@ -10,8 +10,11 @@ Optional:
 """
 
 import logging
+import os
 from pathlib import Path
 from tempfile import mkdtemp
+
+os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
 
 from .config import PORTOLAN_WORK_DIR
 from .mirror import run
