@@ -46,5 +46,5 @@ lint.ignore = ["COM812", "D203", "D213", "FIX002", "S603", "S607", "S608"]
 [tool.taskipy.tasks]
 # uv run task app
 app = "python run.py"
-ruff = "ruff format && ruff check"
+ruff = "ruff check && ruff format"
 test = "pytest --rootdir=. --junitxml=test-results.xml --cov --no-cov-on-fail --cov-report=lcov --cov-report=term-missing"
