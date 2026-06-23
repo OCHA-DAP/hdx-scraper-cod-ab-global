@@ -1,7 +1,7 @@
-# flake8: noqa: E501
+"""Metadata table refactoring and enrichment."""
+
 from pathlib import Path
 
-from hdx.location.country import Country
 from pandas import DataFrame, read_parquet
 
 from ...config import iso3_exclude, iso3_include
@@ -9,66 +9,6 @@ from ...utils import save_metadata
 
 ISO3_LEN = 3
 
-
-column_rename = {
-    "date_valid_from": "date_valid_on",
-    "caveates": "caveats",
-}
-
-source_updates = {
-    "GEO": "National Statistics Office of Georgia [Administraciuli erTeulebi]",
-    "GTM": "Coordinadora Nacional Para La Reducción De Desastres",
-    "HND": "Sistema Nacional de Información Territorial (SINIT), Secretaria Técnica de Planificación y Cooperación Externa (SEPLAN), 2010",
-    "IDN": "Badan Pusat Statistik (BPS - Statistics Indonesia)",
-    "IRN": "UNHCR",
-    "IRQ": "Iraq Central Statistics Office",
-    "JAM": "Jamaica Social Development Commission (sdc.gov.jm)",
-    "KGZ": "Ministry of Emergency Situations of the Kyrgyz Republic",
-    "LBY": "UNITAR-UNOSAT, Libyan Bureau of Statistics, WFP, and Global Logistics Cluster, International Organisation for Migration (IOM)",
-    "MEX": "Instituto Nacional de Estadística y Geografía (INEGI)",
-    "MWI": "National Statistics Office of Malawi",
-    "PER": "Instituto Geográfico Nacional - IGN",
-    "PHL": "National Mapping and Resource Information Authority (NAMRIA), Philippines Statistics Authority (PSA)",
-    "PRK": "World Food Programme",
-    "SLV": "www.gadm.org",
-    "ZWE": "Zimbabwe National Statistics Agency (ZIMSTAT www.zimstat.co.zw) Central Statistics Office",
-}
-
-contributor_updates = {
-    "BFA": "OCHA Burkina Faso",
-    "GEO": "OCHA Middle East and North Africa (ROMENA)",
-    "GTM": "OCHA Field Information Services Section (FISS)",
-    "HND": "OCHA Latin America and the Caribbean (ROLAC)",
-    "IDN": "OCHA Regional Office for Asia and the Pacific (ROAP)",
-    "IRN": "OCHA Middle East and North Africa (ROMENA)",
-    "IRQ": "OCHA Middle East and North Africa (ROMENA)",
-    "JAM": "OCHA Field Information Services Section (FISS)",
-    "KGZ": "OCHA Middle East and North Africa (ROMENA)",
-    "LBY": "OCHA Middle East and North Africa (ROMENA)",
-    "MEX": "OCHA Latin America and the Caribbean (ROLAC)",
-    "MWI": "OCHA Field Information Services Section (FISS)",
-    "PER": "OCHA Latin America and the Caribbean (ROLAC)",
-    "PHL": "OCHA Philippines",
-    "PRK": "OCHA Regional Office for Asia and the Pacific (ROAP)",
-    "SLV": "OCHA Field Information Services Section (FISS)",
-    "ZWE": "OCHA Regional Office for Southern and Eastern Africa (ROSEA)",
-}
-
-admin_level_full_updates = [
-    ("COD", "v01", 3),
-    ("KGZ", "v01", 1),
-    ("PHL", "v03", 3),
-    ("QAT", "v01", 1),
-    ("QAT", "v02", 1),
-]
-
-name_columns = [
-    "admin_1_name",
-    "admin_2_name",
-    "admin_3_name",
-    "admin_4_name",
-    "admin_5_name",
-]
 
 count_columns = [
     "admin_1_count",
@@ -126,26 +66,9 @@ def _df_filter(df: DataFrame) -> DataFrame:
 def refactor(output_file: Path) -> None:
     """Refactor file."""
     df = read_parquet(output_file)
-    df = df.rename(columns=column_rename)
-    for key, value in source_updates.items():
-        df.loc[df["country_iso3"] == key, "source"] = value
-    for key, value in contributor_updates.items():
-        df.loc[df["country_iso3"] == key, "contributor"] = value
-    df["country_name"] = df["country_iso3"].apply(Country.get_country_name_from_iso3)
-    df["country_iso2"] = df["country_iso3"].apply(Country.get_iso2_from_iso3)
-    df[name_columns] = df[name_columns].replace("currently not known", None)
-    df["admin_level_full"] = df["admin_level_full"].replace("Unknown", None)
-    df["admin_level_full"] = df["admin_level_full"].fillna(
-        df["admin_level_max"].astype("string"),
-    )
+    df["country_name"] = df["country_name"].str.replace("\u2019", "'", regex=False)
     df["admin_level_full"] = df["admin_level_full"].astype("Int32")
-    for iso3, version, level in admin_level_full_updates:
-        df.loc[
-            (df["country_iso3"] == iso3) & (df["version"] == version),
-            "admin_level_full",
-        ] = level
     df[count_columns] = df[count_columns].astype("Int32")
-    df = df[df["version"] != ""]
     df = df[df["admin_level_max"].gt(0)]
     df = _df_filter(df)
     df = df[columns].sort_values(by=["country_iso3", "version"])
