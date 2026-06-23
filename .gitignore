@@ -167,6 +167,9 @@ cython_debug/
 
 ## Project
 
+# Portolan work directory
+tmp/
+
 # Directory where the scraper caches data
 saved_data/
 *data*/
