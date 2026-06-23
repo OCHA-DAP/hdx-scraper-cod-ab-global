@@ -242,3 +242,19 @@ Some countries require SQL filters to exclude invalid/conflict geometries (see `
 - South Sudan: Excludes SS00 and SS0807
 
 These filters are applied during the download phase in `download/boundaries/feature.py`.
+
+## Portolan Module (`portolan/`)
+
+Mirrors COD-AB ArcGIS services to source.coop. Run with:
+
+```shell
+uv run python -m hdx.scraper.cod_ab_global.portolan
+```
+
+### Known limitations (upstream portolan-cli issues)
+
+Two features are missing from `portolan extract arcgis` and tracked upstream:
+
+- **No authentication support** ([portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)): `portolan extract arcgis` has no `--token`/`--username`/`--password` options. We work around this by calling `geoparquet_io.extract_arcgis()` directly and using portolan only for catalog management and S3 push. Once #545 lands, we can switch to `portolan extract arcgis` natively and gain `--resume` support.
+
+- **No change detection** ([portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)): Every run re-extracts all layers regardless of whether the data changed. ArcGIS layers expose `editingInfo.lastEditDate` which could be used to skip unchanged layers. Once #546 lands, re-runs will only re-extract what changed.
