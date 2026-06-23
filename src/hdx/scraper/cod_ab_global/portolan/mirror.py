@@ -72,7 +72,9 @@ def _extract_service(service_name: str, token: str, catalog_dir: Path) -> None:
 
         table = gpio.extract_arcgis(layer_url, token=token)
         table = table.sort_hilbert()
-        table.write(out_path, compression="ZSTD", compression_level=15)
+        table.write(
+            out_path, compression="ZSTD", compression_level=15, geoparquet_version="2.0"
+        )
 
 
 def _remove_stale_services(services: list[str], catalog_dir: Path) -> None:
