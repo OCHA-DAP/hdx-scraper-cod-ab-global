@@ -7,13 +7,15 @@ name = "hdx-scraper-cod-ab-global"
 dynamic = ["version"]
 requires-python = ">=3.13"
 dependencies = [
-    "fsspec>=2025.12.0",
+    "fsspec",
     "geopandas",
+    "geoparquet-io",
     "hdx-python-api",
     "hdx-python-country",
     "hdx-python-utilities",
     "httpx[http2]",
     "pandas",
+    "portolan-cli[pmtiles]==1.0.0a0",
     "psycopg[binary]",
     "pyarrow",
     "python-dotenv",
@@ -39,19 +41,7 @@ pythonpath = "src"
 exclude = ["_version.py"]
 fix = true
 lint.select = ["ALL"]
-lint.ignore = [
-    "COM812",
-    "D100",
-    "D104",
-    "D203",
-    "D213",
-    "INP001",
-    "PD010",
-    "S603",
-    "S607",
-    "S608",
-    "TID252",
-]
+lint.ignore = ["COM812", "D203", "D213", "FIX002", "S603", "S607", "S608"]
 
 [tool.taskipy.tasks]
 # uv run task app

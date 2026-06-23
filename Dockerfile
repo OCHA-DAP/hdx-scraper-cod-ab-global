@@ -17,7 +17,8 @@ RUN --mount=type=bind,source=pyproject.toml,target=/srv/pyproject.toml \
         gdal-tools \
         postgis \
         postgresql18-client \
-        python3 && \
+        python3 \
+        tippecanoe && \
     apk add --no-cache --virtual .build-deps \
         build-base \
         gdal-dev \
