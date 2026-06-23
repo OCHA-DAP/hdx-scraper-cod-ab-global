@@ -14,7 +14,6 @@ from textwrap import dedent
 import geoparquet_io as gpio
 
 from .config import (
-    ARCGIS_SERVICES_FILTER,
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
     SOURCECOOP_REMOTE,
@@ -94,7 +93,7 @@ def run(work_dir: Path) -> None:
 
     token = generate_token()
     services = list_services(token)
-    logger.info("Found %d services matching %r", len(services), ARCGIS_SERVICES_FILTER)
+    logger.info("Found %d COD-AB services", len(services))
 
     for service_name in sorted(services):
         _extract_service(service_name, token, catalog_dir)
