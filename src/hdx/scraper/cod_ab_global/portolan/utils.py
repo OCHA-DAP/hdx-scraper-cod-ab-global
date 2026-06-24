@@ -4,6 +4,8 @@ import re
 
 import httpx
 
+from hdx.scraper.cod_ab_global.config import admin_level_full_overrides
+
 from .config import (
     ARCGIS_EXPIRATION,
     ARCGIS_PASSWORD,
@@ -104,6 +106,11 @@ def fetch_metadata_table(token: str) -> dict[str, dict]:
 
     for iso3, row in by_iso3_latest.items():
         result[f"cod_ab_{iso3}"] = row
+
+    for row in result.values():
+        iso3_upper = (row.get("country_iso3") or "").upper()
+        if iso3_upper in admin_level_full_overrides:
+            row["admin_level_full"] = admin_level_full_overrides[iso3_upper]
 
     return result
 

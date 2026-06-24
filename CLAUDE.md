@@ -251,6 +251,33 @@ Mirrors COD-AB ArcGIS services to source.coop. Run with:
 uv run python -m hdx.scraper.cod_ab_global.portolan
 ```
 
+Set `PORTOLAN_WORK_DIR=./portolan` in `.env` to use the persistent local work directory (`portolan/` in the repo root, gitignored). Without it, a temp dir is used and all layers are re-extracted every run.
+
+### Change detection via `lastEditDate`
+
+Each ArcGIS layer endpoint exposes `editingInfo.lastEditDate` (Unix ms). On each run, `_extract_service` fetches this for every layer and compares it to the `updated` field stored in the layer's local `collection.json` (written after `portolan add` by `_enrich_layer_collection`). Layers are skipped if the timestamp matches; re-extracted if it changed.
+
+**Bootstrap:** if a parquet exists but `collection.json` has no `updated` field (first run after adding this feature, or a layer that doesn't expose `lastEditDate`), the layer is skipped and the current timestamp recorded. No re-extraction occurs.
+
+**Removing this workaround:** once [portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546) and [#545](https://github.com/portolan-sdi/portolan-cli/issues/545) land, replace `_extract_service` with native `portolan extract arcgis` and remove `_enrich_layer_collection`, `_read_stored_updated`, and `_last_edit_to_iso`. The `portolan/` work directory and `collection.json` files on S3 are unaffected.
+
+### STAC catalog structure
+
+- `portolan/original/<service>/catalog.json` — service-level STAC Catalog, enriched with `cod_ab:*` fields from `COD_Global_Metadata`
+- `portolan/original/<service>/<layer>/collection.json` — layer-level STAC Collection, includes native `updated` field (source `lastEditDate` as ISO 8601)
+- `portolan add` regenerates both files on every run; custom fields are re-applied afterwards by `_enrich_service_catalog` and `_enrich_layer_collection`
+
+### Extended catalog (`portolan/extended/`)
+
+`portolan/extended.py` mirrors edge-extended boundaries to `s3://…/hdx/cod-ab/extended/`. It runs automatically after the original mirror in `__main__.py`. Key properties:
+
+- **Source data**: reads from local `portolan/original/` (no ArcGIS calls needed)
+- **Content**: only polygon admin boundary layers matching `^[a-z]{3}_admin\d$` (admin0–adminN). Lines, points, capitals, and regions are excluded. Output is capped at `admin_level_full` to avoid publishing synthesised dissolve-up layers.
+- **Processing**: runs `preprocess_extended` → `edge_extender` → `postprocess_extended` per service in an isolated temp dir. Parquets are reorganised into portolan's `<layer>/<layer>.parquet` layout before ingestion.
+- **Change detection (service-level)**: if any admin polygon layer's `updated` timestamp in `original` differs from the stored value in `extended/<service>/catalog.json` (`cod_ab:original_updated`), the whole service is re-processed. The `updated` field in each extended layer's `collection.json` is set to the max `updated` across all original admin layers for that service.
+- **Stale layer cleanup**: the existing `extended/<service>/` directory is deleted before writing new results, so layers removed when `admin_level_full` shrinks (e.g. admin3 → admin2) are not left behind.
+- **Config**: `EXTENDED_SOURCECOOP_REMOTE` env var (default `s3://…/hdx/cod-ab/extended/`)
+
 ### Local patch: geoparquet-io int32→timestamp cast (geoparquet-io#516)
 
 **`uv sync` will overwrite this patch — re-apply it if Niger extraction starts failing again.**
@@ -304,4 +331,4 @@ Two features are missing from `portolan extract arcgis` and tracked upstream:
 
 - **No authentication support** ([portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)): `portolan extract arcgis` has no `--token`/`--username`/`--password` options. We work around this by calling `geoparquet_io.extract_arcgis()` directly and using portolan only for catalog management and S3 push. Once #545 lands, we can switch to `portolan extract arcgis` natively and gain `--resume` support.
 
-- **No change detection** ([portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)): Every run re-extracts all layers regardless of whether the data changed. ArcGIS layers expose `editingInfo.lastEditDate` which could be used to skip unchanged layers. Once #546 lands, re-runs will only re-extract what changed.
+- **No change detection** ([portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)): Worked around locally via `editingInfo.lastEditDate` stored in each layer's `collection.json` `updated` field — see "Change detection" section above. Once #546 lands natively, the workaround can be removed.

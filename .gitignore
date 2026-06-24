@@ -167,8 +167,8 @@ cython_debug/
 
 ## Project
 
-# Portolan work directory
-tmp/
+# Portolan work directory (repo root only — not the Python module)
+/portolan/
 
 # Directory where the scraper caches data
 saved_data/

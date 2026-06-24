@@ -8,6 +8,7 @@ and S3 push.
 import json
 import logging
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from subprocess import CalledProcessError
 from subprocess import run as _run
@@ -15,10 +16,12 @@ from textwrap import dedent
 
 import geoparquet_io as gpio
 import yaml
+from hdx.location.country import Country
 
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
+    SOURCECOOP_REMOTE,
 )
 from .utils import fetch_json, fetch_metadata_table, generate_token, list_services
 
@@ -102,6 +105,11 @@ def _enrich_service_catalog(service_dir: Path, meta: dict) -> None:
         value = meta.get(field)
         if value is not None and str(value).strip():
             data[f"cod_ab:{field}"] = value
+    if "cod_ab:country_iso2" not in data:
+        iso3 = (meta.get("country_iso3") or "").upper()
+        iso2 = Country.get_iso2_from_iso3(iso3) if iso3 else None
+        if iso2:
+            data["cod_ab:country_iso2"] = iso2
     catalog_path.write_text(json.dumps(data, indent=2))
 
 
@@ -152,14 +160,43 @@ def _write_service_metadata(
     )
 
 
+def _last_edit_to_iso(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat(timespec="milliseconds")
+
+
+def _read_stored_updated(layer_dir: Path) -> str | None:
+    collection_path = layer_dir / "collection.json"
+    if not collection_path.exists():
+        return None
+    return json.loads(collection_path.read_text()).get("updated")
+
+
+def _enrich_layer_collection(layer_dir: Path, updated_iso: str) -> None:
+    """Write the STAC updated field into a layer collection.json."""
+    collection_path = layer_dir / "collection.json"
+    if not collection_path.exists():
+        return
+    data = json.loads(collection_path.read_text())
+    data["updated"] = updated_iso
+    collection_path.write_text(json.dumps(data, indent=2))
+
+
 def _extract_service(
-    service_name: str, token: str, catalog_dir: Path, metadata: dict[str, dict]
-) -> None:
-    """Extract all layers for one COD-AB service to GeoParquet."""
+    service_name: str,
+    token: str,
+    catalog_dir: Path,
+    metadata: dict[str, dict],
+) -> dict[str, str]:
+    """Extract all layers for one COD-AB service to GeoParquet.
+
+    Returns {layer_name: updated_iso} for all layers where lastEditDate is available,
+    to be written into each layer's collection.json after portolan add.
+    """
     service_url = f"{ARCGIS_SERVICES_URL}/{service_name}/FeatureServer"
     data = fetch_json(service_url, token)
 
     service_dir = catalog_dir / service_name.lower()
+    layer_updated: dict[str, str] = {}
 
     for layer in data.get("layers", []):
         layer_id = layer["id"]
@@ -168,11 +205,27 @@ def _extract_service(
         out_path = layer_dir / f"{layer_name}.parquet"
 
         layer_dir.mkdir(parents=True, exist_ok=True)
-        if out_path.exists():
-            logger.debug("Skipping existing %s", out_path)
-            continue
 
         layer_url = f"{service_url}/{layer_id}"
+        layer_meta = fetch_json(layer_url, token)
+        last_edit = (layer_meta.get("editingInfo") or {}).get("lastEditDate")
+        updated_iso = _last_edit_to_iso(last_edit) if last_edit is not None else None
+
+        if updated_iso is not None:
+            layer_updated[layer_name] = updated_iso
+
+        if out_path.exists():
+            stored = _read_stored_updated(layer_dir)
+            # Skip if: no lastEditDate (can't detect changes), timestamps match,
+            # or no stored value yet (bootstrap: trust existing parquet).
+            if updated_iso is None or stored is None or updated_iso == stored:
+                logger.debug("Skipping unchanged %s", out_path)
+                continue
+            logger.info(
+                "Re-extracting updated layer %s (lastEditDate changed)", layer_name
+            )
+            out_path.unlink()
+
         logger.info("Extracting %s", layer_url)
 
         try:
@@ -185,6 +238,34 @@ def _extract_service(
 
     meta = metadata.get(service_name.lower())
     _write_service_metadata(service_dir, service_name, meta)
+    return layer_updated
+
+
+def _push_service_catalogs(catalog_dir: Path, remote: str) -> None:
+    """Upload service-level catalog.json and README.md to S3.
+
+    portolan push only handles leaf collections; intermediate subcatalog files
+    must be synced separately so STAC clients can navigate the hierarchy.
+    Uses aws s3 sync with depth filtering to upload all service dirs in one call.
+    """
+    _run(
+        [
+            "aws",
+            "s3",
+            "sync",
+            str(catalog_dir),
+            remote.rstrip("/"),
+            "--exclude",
+            "*",
+            "--include",
+            "*/catalog.json",
+            "--include",
+            "*/README.md",
+            "--exclude",
+            "*/*/*",
+        ],
+        check=True,
+    )
 
 
 def _remove_stale_services(services: list[str], catalog_dir: Path) -> None:
@@ -214,8 +295,11 @@ def run(work_dir: Path) -> None:
     metadata = fetch_metadata_table(token)
     logger.info("Fetched metadata for %d services", len(metadata))
 
+    service_layer_updated: dict[str, dict[str, str]] = {}
     for service_name in sorted(services):
-        _extract_service(service_name, token, catalog_dir, metadata)
+        service_layer_updated[service_name] = _extract_service(
+            service_name, token, catalog_dir, metadata
+        )
 
     _write_catalog_metadata(catalog_dir)
 
@@ -250,12 +334,18 @@ def run(work_dir: Path) -> None:
             continue
         if meta:
             _enrich_service_catalog(catalog_dir / service_name.lower(), meta)
+        service_dir = catalog_dir / service_name.lower()
+        for layer_name, iso in service_layer_updated.get(service_name, {}).items():
+            _enrich_layer_collection(service_dir / layer_name, iso)
     try:
         _portolan(["stac-geoparquet"], cwd=catalog_dir)
     except CalledProcessError:
         logger.warning("portolan stac-geoparquet: no items in catalog — skipping")
     _portolan(["check", "--metadata", "--fix"], cwd=catalog_dir)
     _portolan(["readme"], cwd=catalog_dir)
-    _portolan(["push", "--workers", workers, "--verbose"], cwd=catalog_dir)
+    _portolan(
+        ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=catalog_dir
+    )
+    _push_service_catalogs(catalog_dir, SOURCECOOP_REMOTE)
     # TODO(portolan-sdi/portolan-cli#543): restore --strict once fixed
     _portolan(["check", "--verbose"], cwd=catalog_dir)

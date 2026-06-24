@@ -31,7 +31,8 @@ def _patched_request(*args: Any, timeout: float = 300.0, **kwargs: Any) -> Any: 
 _gpio_arcgis.make_request_with_retry = _patched_request
 
 from .config import PORTOLAN_WORK_DIR  # noqa: E402
-from .mirror import run  # noqa: E402
+from .extended import run as extended_run  # noqa: E402
+from .mirror import run as mirror_run  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,4 +45,5 @@ work_dir = (
     if PORTOLAN_WORK_DIR
     else Path(mkdtemp(prefix="portolan-cod-ab-"))
 )
-run(work_dir)
+mirror_run(work_dir)
+extended_run(work_dir)

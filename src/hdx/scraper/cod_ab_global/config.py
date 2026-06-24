@@ -57,6 +57,7 @@ iso3_exclude = [
 ]
 
 admin_level_full_overrides = {
+    "BGD": 4,
     "IDN": 4,
     "PHL": 4,
 }

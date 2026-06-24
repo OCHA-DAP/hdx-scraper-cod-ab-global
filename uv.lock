@@ -1059,6 +1059,7 @@ wheels = [
 name = "hdx-scraper-cod-ab-global"
 source = { editable = "." }
 dependencies = [
+    { name = "duckdb" },
     { name = "fsspec" },
     { name = "geopandas" },
     { name = "geoparquet-io" },
@@ -1087,6 +1088,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb" },
     { name = "fsspec" },
     { name = "geopandas" },
     { name = "geoparquet-io" },
