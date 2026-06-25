@@ -27,6 +27,8 @@ from .utils import fetch_json, fetch_metadata_table, generate_token, list_servic
 
 logger = logging.getLogger(__name__)
 
+_CATALOG_TITLE = "COD-AB Administrative Boundaries"
+
 
 _PORTOLAN = str(Path(sys.executable).parent / "portolan")
 
@@ -241,42 +243,69 @@ def _extract_service(
     return layer_updated
 
 
-def _push_service_catalogs(catalog_dir: Path, remote: str) -> None:
-    """Upload service-level catalog.json and README.md to S3.
+def _push_catalog_files(work_dir: Path, remote: str) -> None:
+    """Upload intermediate catalog.json and README.md files to S3.
 
-    portolan push only handles leaf collections; intermediate subcatalog files
-    must be synced separately so STAC clients can navigate the hierarchy.
-    Uses aws s3 sync with depth filtering to upload all service dirs in one call.
+    portolan push handles leaf collections only. This syncs catalog.json and
+    README.md at the root, variant (original/, extended/, ...), and service
+    levels so STAC clients can navigate the full hierarchy.
     """
     _run(
         [
             "aws",
             "s3",
             "sync",
-            str(catalog_dir),
+            str(work_dir),
             remote.rstrip("/"),
             "--exclude",
             "*",
             "--include",
+            "catalog.json",
+            "--include",
             "*/catalog.json",
             "--include",
+            "*/*/catalog.json",
+            "--include",
             "*/README.md",
+            "--include",
+            "*/*/README.md",
             "--exclude",
-            "*/*/*",
+            "*/*/*/*",
         ],
         check=True,
     )
 
 
-def _remove_stale_services(services: list[str], catalog_dir: Path) -> None:
-    """Remove service directories no longer present in ArcGIS."""
+def _ensure_root_catalog(work_dir: Path) -> None:
+    """Initialise the single portolan catalog rooted at work_dir if not present."""
+    if (work_dir / ".portolan" / "config.yaml").exists() and (
+        work_dir / "catalog.json"
+    ).exists():
+        return
+    (work_dir / ".portolan" / "config.yaml").unlink(missing_ok=True)
+    _portolan(["init", "--title", _CATALOG_TITLE, "--auto"], cwd=work_dir)
+
+
+def _remove_stale_services(
+    services: list[str],
+    variant_dir: Path,
+    variant_prefix: str,
+    catalog_dir: Path,
+) -> None:
+    """Remove service directories no longer present in ArcGIS.
+
+    variant_dir is scanned for stale subdirectories; portolan rm is called
+    from catalog_dir (the root) using variant_prefix/service_name/ paths.
+    """
     current = {s.lower() for s in services}
-    for path in sorted(catalog_dir.iterdir()):
+    for path in sorted(variant_dir.iterdir()):
         if not path.is_dir() or path.name.startswith("."):
             continue
         if path.name not in current:
             logger.info("Removing stale service %s", path.name)
-            _portolan(["rm", "--force", f"{path.name}/"], cwd=catalog_dir)
+            _portolan(
+                ["rm", "--force", f"{variant_prefix}/{path.name}/"], cwd=catalog_dir
+            )
 
 
 def run(work_dir: Path) -> None:
@@ -301,34 +330,28 @@ def run(work_dir: Path) -> None:
             service_name, token, catalog_dir, metadata
         )
 
-    _write_catalog_metadata(catalog_dir)
+    _write_catalog_metadata(work_dir)
 
     workers = str(PORTOLAN_WORKERS)
-    portolan_operational = (catalog_dir / ".portolan" / "config.yaml").exists() and (
-        catalog_dir / "catalog.json"
-    ).exists()
-    if portolan_operational:
-        _remove_stale_services(services, catalog_dir)
-    else:
-        # Remove stale config.yaml so portolan init can run cleanly.
-        # A partial previous run may have written config.yaml without ever
-        # completing catalog.json (e.g. if portolan add failed).
-        portolan_config = catalog_dir / ".portolan" / "config.yaml"
-        if portolan_config.exists():
-            portolan_config.unlink()
-            logger.info("Removed stale .portolan/config.yaml to allow clean init")
-        _portolan(
-            ["init", "--title", "COD-AB Original Boundaries", "--auto"],
-            cwd=catalog_dir,
-        )
+    if catalog_dir.exists() and any(
+        d.is_dir() and not d.name.startswith(".") for d in catalog_dir.iterdir()
+    ):
+        _remove_stale_services(services, catalog_dir, "original", work_dir)
+
     for service_name in sorted(services):
         meta = metadata.get(service_name.lower())
         date_valid_on = (meta.get("date_valid_on") or "").strip() if meta else ""
-        args = ["add", f"{service_name.lower()}/", "--workers", workers, "--pmtiles"]
+        args = [
+            "add",
+            f"original/{service_name.lower()}/",
+            "--workers",
+            workers,
+            "--pmtiles",
+        ]
         if date_valid_on:
             args += ["--datetime", date_valid_on]
         try:
-            _portolan(args, cwd=catalog_dir)
+            _portolan(args, cwd=work_dir)
         except CalledProcessError:
             logger.exception("portolan add failed for %s — skipping", service_name)
             continue
@@ -338,14 +361,12 @@ def run(work_dir: Path) -> None:
         for layer_name, iso in service_layer_updated.get(service_name, {}).items():
             _enrich_layer_collection(service_dir / layer_name, iso)
     try:
-        _portolan(["stac-geoparquet"], cwd=catalog_dir)
+        _portolan(["stac-geoparquet"], cwd=work_dir)
     except CalledProcessError:
         logger.warning("portolan stac-geoparquet: no items in catalog — skipping")
-    _portolan(["check", "--metadata", "--fix"], cwd=catalog_dir)
-    _portolan(["readme"], cwd=catalog_dir)
     _portolan(
-        ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=catalog_dir
+        ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=work_dir
     )
-    _push_service_catalogs(catalog_dir, SOURCECOOP_REMOTE)
+    _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
     # TODO(portolan-sdi/portolan-cli#543): restore --strict once fixed
-    _portolan(["check", "--verbose"], cwd=catalog_dir)
+    _portolan(["check", "--verbose"], cwd=work_dir)

@@ -20,14 +20,13 @@ from subprocess import CalledProcessError
 import duckdb
 import geoparquet_io as gpio
 
-from .config import ARCGIS_SERVICES_URL, MATCHED_SOURCECOOP_REMOTE, PORTOLAN_WORKERS
+from .config import ARCGIS_SERVICES_URL, PORTOLAN_WORKERS, SOURCECOOP_REMOTE
 from .extended import _ADMIN_POLYGON_RE, _get_admin_updated_map, _write_gpq2
-from .mirror import (
+from .original import (
     _enrich_service_catalog,
     _portolan,
-    _push_service_catalogs,
+    _push_catalog_files,
     _remove_stale_services,
-    _write_catalog_metadata,
     _write_service_metadata,
 )
 from .utils import generate_token
@@ -52,7 +51,9 @@ def _load_stored_extended_updated(service_dir: Path) -> dict[str, str]:
 
 def _ensure_bnda(work_dir: Path) -> Path:
     """Return path to bnda_cty.parquet, downloading if absent."""
-    bnda_path = work_dir / "bnda_cty.parquet"
+    bnda_dir = work_dir / ".bnda"
+    bnda_dir.mkdir(exist_ok=True)
+    bnda_path = bnda_dir / "bnda_cty.parquet"
     if bnda_path.exists():
         return bnda_path
     logger.info("Downloading UN BNDA boundaries from %s", _BNDA_URL)
@@ -232,9 +233,10 @@ def _run_clipping(
     return processed
 
 
-def _portolan_add_services(
+def _portolan_add_services(  # noqa: PLR0913
     services: list[str],
     matched_dir: Path,
+    work_dir: Path,
     service_meta: dict[str, dict],
     extended_maps: dict[str, dict[str, str]],
     workers: str,
@@ -245,12 +247,18 @@ def _portolan_add_services(
             continue
         meta = service_meta.get(service_name, {})
         date_valid_on = (meta.get("date_valid_on") or "").strip()
-        args = ["add", f"{service_name}/", "--workers", workers, "--pmtiles"]
+        args = [
+            "add",
+            f"matched/{service_name}/",
+            "--workers",
+            workers,
+            "--pmtiles",
+        ]
         if date_valid_on:
             args += ["--datetime", date_valid_on]
         _write_service_metadata(matched_dir / service_name, service_name, meta or None)
         try:
-            _portolan(args, cwd=matched_dir)
+            _portolan(args, cwd=work_dir)
         except CalledProcessError:
             logger.exception("portolan add failed for %s — skipping", service_name)
             continue
@@ -258,24 +266,6 @@ def _portolan_add_services(
         service_dir = matched_dir / service_name
         _enrich_matched_catalog(service_dir, meta, extended_map)
         _enrich_matched_layer_collections(service_dir, extended_map)
-
-
-def _ensure_portolan_catalog(services: list[str], matched_dir: Path) -> None:
-    """Initialise portolan catalog or remove stale services."""
-    portolan_operational = (matched_dir / ".portolan" / "config.yaml").exists() and (
-        matched_dir / "catalog.json"
-    ).exists()
-    if portolan_operational:
-        _remove_stale_services(services, matched_dir)
-    else:
-        portolan_config = matched_dir / ".portolan" / "config.yaml"
-        if portolan_config.exists():
-            portolan_config.unlink()
-            logger.info("Removed stale .portolan/config.yaml to allow clean init")
-        _portolan(
-            ["init", "--title", "COD-AB Matched Boundaries", "--auto"],
-            cwd=matched_dir,
-        )
 
 
 def run(work_dir: Path) -> None:
@@ -320,26 +310,26 @@ def run(work_dir: Path) -> None:
 
     all_extended_maps: dict[str, dict[str, str]] = {**stored_maps, **processed_maps}
 
-    _write_catalog_metadata(matched_dir)
     workers = str(PORTOLAN_WORKERS)
-    _ensure_portolan_catalog(services, matched_dir)
+    if matched_dir.exists() and any(
+        d.is_dir() and not d.name.startswith(".") for d in matched_dir.iterdir()
+    ):
+        _remove_stale_services(services, matched_dir, "matched", work_dir)
     _portolan_add_services(
-        services, matched_dir, service_meta, all_extended_maps, workers
+        services, matched_dir, work_dir, service_meta, all_extended_maps, workers
     )
 
     try:
-        _portolan(["stac-geoparquet"], cwd=matched_dir)
+        _portolan(["stac-geoparquet"], cwd=work_dir)
     except CalledProcessError:
         logger.warning("portolan stac-geoparquet: no items — skipping")
-    _portolan(["check", "--metadata", "--fix"], cwd=matched_dir)
-    _portolan(["readme"], cwd=matched_dir)
     try:
         _portolan(
-            ["push", MATCHED_SOURCECOOP_REMOTE, "--workers", workers, "--verbose"],
-            cwd=matched_dir,
+            ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"],
+            cwd=work_dir,
         )
     except CalledProcessError:
         logger.exception("portolan push failed — matched catalog not synced to S3")
         return
-    _push_service_catalogs(matched_dir, MATCHED_SOURCECOOP_REMOTE)
-    _portolan(["check", "--verbose"], cwd=matched_dir)
+    _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
+    _portolan(["check", "--verbose"], cwd=work_dir)

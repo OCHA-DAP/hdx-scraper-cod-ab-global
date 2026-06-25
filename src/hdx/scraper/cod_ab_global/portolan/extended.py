@@ -21,15 +21,15 @@ import duckdb
 import geoparquet_io as gpio
 from hdx.location.country import Country
 
+from hdx.scraper.cod_ab_global.config import where_filter as _where_filter
 from hdx.scraper.cod_ab_global.edge_extender import edge_extender
 
-from .config import EXTENDED_SOURCECOOP_REMOTE, PORTOLAN_WORKERS
-from .mirror import (
+from .config import PORTOLAN_WORKERS, SOURCECOOP_REMOTE
+from .original import (
     _enrich_service_catalog,
     _portolan,
-    _push_service_catalogs,
+    _push_catalog_files,
     _remove_stale_services,
-    _write_catalog_metadata,
     _write_service_metadata,
 )
 
@@ -184,6 +184,42 @@ def _dissolve_all_levels(
         con.close()
 
 
+def _apply_where_filter(path: Path, iso3_upper: str) -> None:
+    """Apply config.where_filter to a parquet in-place before edge extension.
+
+    Conditions referencing fields not present in the parquet (e.g. adm2_pcode on an
+    admin1 layer) are silently dropped so the call is safe for any admin level.
+    """
+    raw = _where_filter.get(iso3_upper)
+    if not raw:
+        return
+    con = duckdb.connect()
+    try:
+        con.load_extension("spatial")
+        described = con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{path}')"
+        ).fetchall()
+        available = {r[0] for r in described}
+        conditions = [
+            c.strip()
+            for c in raw.split(" and ")
+            if c.strip().split()[0].lower() in available
+        ]
+        if not conditions:
+            return
+        where = " and ".join(conditions)
+        tmp = path.with_suffix(".tmp.parquet")
+        con.execute(
+            f"COPY (SELECT * FROM read_parquet('{path}') WHERE {where})"
+            f" TO '{tmp}' (FORMAT PARQUET, COMPRESSION ZSTD)"
+        )
+        path.unlink()
+        tmp.rename(path)
+        logger.debug("Applied where filter for %s: %s", iso3_upper, where)
+    finally:
+        con.close()
+
+
 def _process_service(service_name: str, original_dir: Path, extended_dir: Path) -> bool:
     """Run edge extension for one service in an isolated temp dir.
 
@@ -207,6 +243,7 @@ def _process_service(service_name: str, original_dir: Path, extended_dir: Path) 
         pre_dir = temp_path / "country" / "extended_pre"
         pre_dir.mkdir(parents=True, exist_ok=True)
         copy(seed_src, pre_dir / f"{layer_name}.parquet")
+        _apply_where_filter(pre_dir / f"{layer_name}.parquet", iso3.upper())
 
         try:
             edge_extender(temp_path)
@@ -300,9 +337,10 @@ def _run_extensions(
     return processed
 
 
-def _portolan_add_services(
+def _portolan_add_services(  # noqa: PLR0913
     services: list[str],
     extended_dir: Path,
+    work_dir: Path,
     service_meta: dict[str, dict],
     original_maps: dict[str, dict[str, str]],
     workers: str,
@@ -317,12 +355,18 @@ def _portolan_add_services(
             continue
         meta = service_meta.get(service_name, {})
         date_valid_on = (meta.get("date_valid_on") or "").strip()
-        args = ["add", f"{service_name}/", "--workers", workers, "--pmtiles"]
+        args = [
+            "add",
+            f"extended/{service_name}/",
+            "--workers",
+            workers,
+            "--pmtiles",
+        ]
         if date_valid_on:
             args += ["--datetime", date_valid_on]
         _write_service_metadata(extended_dir / service_name, service_name, meta or None)
         try:
-            _portolan(args, cwd=extended_dir)
+            _portolan(args, cwd=work_dir)
         except CalledProcessError:
             logger.exception("portolan add failed for %s — skipping", service_name)
             continue
@@ -330,24 +374,6 @@ def _portolan_add_services(
         service_dir = extended_dir / service_name
         _enrich_extended_catalog(service_dir, meta, original_map)
         _enrich_extended_layer_collections(service_dir, original_map)
-
-
-def _ensure_portolan_catalog(services: list[str], extended_dir: Path) -> None:
-    """Initialise portolan catalog or remove stale services."""
-    portolan_operational = (extended_dir / ".portolan" / "config.yaml").exists() and (
-        extended_dir / "catalog.json"
-    ).exists()
-    if portolan_operational:
-        _remove_stale_services(services, extended_dir)
-    else:
-        portolan_config = extended_dir / ".portolan" / "config.yaml"
-        if portolan_config.exists():
-            portolan_config.unlink()
-            logger.info("Removed stale .portolan/config.yaml to allow clean init")
-        _portolan(
-            ["init", "--title", "COD-AB Extended Boundaries", "--auto"],
-            cwd=extended_dir,
-        )
 
 
 def run(work_dir: Path) -> None:
@@ -390,26 +416,26 @@ def run(work_dir: Path) -> None:
     # Merge: stored maps as base, newly processed maps override
     all_original_maps: dict[str, dict[str, str]] = {**stored_maps, **processed_maps}
 
-    _write_catalog_metadata(extended_dir)
     workers = str(PORTOLAN_WORKERS)
-    _ensure_portolan_catalog(services, extended_dir)
+    if extended_dir.exists() and any(
+        d.is_dir() and not d.name.startswith(".") for d in extended_dir.iterdir()
+    ):
+        _remove_stale_services(services, extended_dir, "extended", work_dir)
     _portolan_add_services(
-        services, extended_dir, service_meta, all_original_maps, workers
+        services, extended_dir, work_dir, service_meta, all_original_maps, workers
     )
 
     try:
-        _portolan(["stac-geoparquet"], cwd=extended_dir)
+        _portolan(["stac-geoparquet"], cwd=work_dir)
     except CalledProcessError:
         logger.warning("portolan stac-geoparquet: no items — skipping")
-    _portolan(["check", "--metadata", "--fix"], cwd=extended_dir)
-    _portolan(["readme"], cwd=extended_dir)
     try:
         _portolan(
-            ["push", EXTENDED_SOURCECOOP_REMOTE, "--workers", workers, "--verbose"],
-            cwd=extended_dir,
+            ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"],
+            cwd=work_dir,
         )
     except CalledProcessError:
         logger.exception("portolan push failed — extended catalog not synced to S3")
         return
-    _push_service_catalogs(extended_dir, EXTENDED_SOURCECOOP_REMOTE)
-    _portolan(["check", "--verbose"], cwd=extended_dir)
+    _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
+    _portolan(["check", "--verbose"], cwd=work_dir)
