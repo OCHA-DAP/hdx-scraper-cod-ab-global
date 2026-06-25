@@ -23,5 +23,9 @@ EXTENDED_SOURCECOOP_REMOTE = getenv(
     "EXTENDED_SOURCECOOP_REMOTE",
     "s3://us-west-2.opendata.source.coop/hdx/cod-ab/extended/",
 )
+MATCHED_SOURCECOOP_REMOTE = getenv(
+    "MATCHED_SOURCECOOP_REMOTE",
+    "s3://us-west-2.opendata.source.coop/hdx/cod-ab/matched/",
+)
 PORTOLAN_WORK_DIR = getenv("PORTOLAN_WORK_DIR", "")
 PORTOLAN_WORKERS = int(getenv("PORTOLAN_WORKERS", str(min(os.cpu_count() or 4, 8))))
