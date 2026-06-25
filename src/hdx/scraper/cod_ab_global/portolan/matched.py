@@ -50,8 +50,12 @@ def _load_stored_extended_updated(service_dir: Path) -> dict[str, str]:
 
 
 def _ensure_bnda(work_dir: Path) -> Path:
-    """Return path to bnda_cty.parquet, downloading if absent."""
-    bnda_dir = work_dir / ".bnda"
+    """Return path to bnda_cty.parquet, downloading if absent.
+
+    Stored at work_dir.parent/.bnda/ — outside the portolan catalog tree — so
+    it can never be swept up by portolan push or aws s3 sync.
+    """
+    bnda_dir = work_dir.parent / ".bnda"
     bnda_dir.mkdir(exist_ok=True)
     bnda_path = bnda_dir / "bnda_cty.parquet"
     if bnda_path.exists():
