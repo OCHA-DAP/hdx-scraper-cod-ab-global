@@ -76,6 +76,8 @@ def _clip_to_bnda(input_path: Path, output_path: Path, bnda_path: Path) -> None:
     con = duckdb.connect()
     try:
         con.load_extension("spatial")
+        con.execute("SET preserve_insertion_order=false")
+        con.execute("SET threads=2")
         all_cols = [
             r[0]
             for r in con.execute(
