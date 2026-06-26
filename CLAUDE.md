@@ -2,6 +2,17 @@
 
 This file provides guidance to code agents when working with code in this repository.
 
+## ABSOLUTE CONSTRAINTS — Never Violate
+
+**You are NEVER allowed to degrade the quality of the source geometry or coordinate data in any way. This includes but is not limited to:**
+
+- No coordinate precision reduction (e.g. `--precision`, `ST_SnapToGrid`, rounding)
+- No geometry simplification (e.g. `ST_Simplify`, `ST_SimplifyPreserveTopology`, tippecanoe `-S`)
+- No vertex reduction or tolerance-based generalization of any kind
+- No lossy geometry transformations at any stage of the pipeline
+
+This rule applies to all stages: download, processing, edge extension, clipping, PMTiles generation, and any format conversion. The source data must pass through at full fidelity. If a tool or operation requires precision reduction to succeed, find a different approach — do not apply the reduction.
+
 ## Overview
 
 This is a Python scraper that downloads Common Operational Datasets - Administrative Boundaries (COD-AB) from OCHA's ArcGIS Enterprise Server (gis.unocha.org) and generates global administrative boundary datasets published to the Humanitarian Data Exchange (HDX).

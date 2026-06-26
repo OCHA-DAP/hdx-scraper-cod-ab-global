@@ -1,11 +1,13 @@
 """Assemble global COD-AB matched boundaries by admin level.
 
-Reads the latest-versioned matched service per iso3 from portolan/matched/, builds
-a global admin4-equivalent layer (each country contributes its deepest available
-level), applies ST_CoverageClean to fix inter-country boundary slivers, then
-dissolves down to admin3/admin2/admin1 guaranteeing perfect topological consistency.
+Reads the latest-versioned matched service per iso3 from the unified catalog,
+builds a global admin4-equivalent layer (each country contributes its deepest
+available level), applies ST_CoverageClean to fix inter-country boundary
+slivers, then dissolves down to admin3/admin2/admin1 guaranteeing perfect
+topological consistency.
 
-Output is four GeoParquet files (admin1-admin4) pushed to source.coop.
+Output is four GeoParquet files (adm1-adm4) written to wld/ and pushed to
+source.coop.
 """
 
 import contextlib
@@ -17,14 +19,13 @@ from subprocess import CalledProcessError
 
 import duckdb
 
-from .config import PORTOLAN_WORKERS, SOURCECOOP_REMOTE
+from .config import PORTOLAN_WORKERS
 from .extended import _write_gpq2
-from .original import _portolan, _push_catalog_files
+from .original import _portolan
 
 logger = logging.getLogger(__name__)
 
 _MAX_ADMIN = 4
-_SERVICE_PARTS = 4  # cod_ab_xxx_v## splits into exactly 4 parts
 _ADM_SUFFIXES = ("_name", "_name1", "_name2", "_name3", "_pcode")
 _COMMON_COLS = [
     "lang",
@@ -41,59 +42,64 @@ _SNAPPING = 1e-9
 _STATE_FILE = ".global_state.json"
 
 
-def _latest_versioned_per_iso3(matched_dir: Path) -> dict[str, Path]:
-    """Return {iso3: service_dir} for the highest-versioned service per iso3.
+def _latest_versioned_per_iso3(work_dir: Path) -> dict[str, Path]:
+    """Return {iso3: version_dir} for the highest-versioned service per iso3.
 
-    Unversioned services (cod_ab_afg) are ignored - they can be stale relative
-    to versioned counterparts. Only cod_ab_xxx_v## directories are considered.
+    Unversioned services (latest/) are ignored — only v{N}/ directories are
+    considered for the global composite.
     """
     best: dict[str, tuple[int, Path]] = {}
-    for d in matched_dir.iterdir():
-        if not d.is_dir() or d.name.startswith("."):
+    for country_dir in work_dir.iterdir():
+        if not country_dir.is_dir() or country_dir.name.startswith("."):
             continue
-        parts = d.name.split("_")
-        if (
-            len(parts) == _SERVICE_PARTS
-            and parts[3].startswith("v")
-            and parts[3][1:].isdigit()
-        ):
-            iso3 = parts[2]
-            v = int(parts[3][1:])
-            if iso3 not in best or v > best[iso3][0]:
-                best[iso3] = (v, d)
+        if country_dir.name == "wld":
+            continue
+        iso3 = country_dir.name
+        for version_dir in country_dir.iterdir():
+            if not version_dir.is_dir() or version_dir.name.startswith("."):
+                continue
+            v = version_dir.name
+            if v.startswith("v") and v[1:].isdigit():
+                n = int(v[1:])
+                if iso3 not in best or n > best[iso3][0]:
+                    best[iso3] = (n, version_dir)
     return {iso3: info[1] for iso3, info in best.items()}
 
 
-def _get_service_meta(service_dir: Path) -> dict | None:
+def _get_service_meta(version_dir: Path) -> dict | None:
     """Return admin level, parquet path, and change-detection key for one service.
 
-    iso3 and admin level are derived from the directory structure directly.
-    Only cod_ab:extended_updated is read from catalog.json, for change detection.
+    Only adm1+ matched parquets are candidates; adm0 is always excluded.
     """
-    iso3_lower = service_dir.name.split("_")[2]
+    iso3_lower = version_dir.parent.name
     available = [
-        int(d.name[-1])
-        for d in service_dir.iterdir()
+        int(d.name[3:])
+        for d in version_dir.iterdir()
         if d.is_dir()
-        and not d.name.endswith("0")
-        and (d / f"{d.name}.parquet").exists()
+        and d.name.startswith("adm")
+        and d.name[3:].isdigit()
+        and d.name != "adm0"
+        and (d / "matched.parquet").exists()
     ]
     if not available:
-        logger.warning("No usable parquet for %s - skipping", service_dir.name)
+        logger.warning(
+            "No usable matched parquet for %s/%s — skipping",
+            iso3_lower,
+            version_dir.name,
+        )
         return None
     level = max(available)
-    layer = f"{iso3_lower}_admin{level}"
-    parquet_path = service_dir / layer / f"{layer}.parquet"
+    parquet_path = version_dir / f"adm{level}" / "matched.parquet"
     extended_updated: dict[str, str] = {}
-    catalog_path = service_dir / "catalog.json"
+    catalog_path = version_dir / "catalog.json"
     if catalog_path.exists():
         with contextlib.suppress(json.JSONDecodeError, TypeError, KeyError):
             raw = json.loads(catalog_path.read_text()).get("cod_ab:extended_updated")
             if raw:
                 extended_updated = json.loads(raw)
     return {
-        "service_name": service_dir.name,
-        "service_dir": service_dir,
+        "service_name": f"{iso3_lower}/{version_dir.name}",
+        "service_dir": version_dir,
         "admin_level_full": level,
         "iso3": iso3_lower,
         "parquet_path": parquet_path,
@@ -131,7 +137,7 @@ def _build_service_select(meta: dict, con: duckdb.DuckDBPyConnection) -> str:
 def _assemble_and_clean(
     services_meta: list[dict],
     con: duckdb.DuckDBPyConnection,
-    admin4_path: Path,
+    adm4_path: Path,
 ) -> None:
     """UNION ALL per-country deepest admin parquets, apply ST_CoverageClean, write."""
     selects = [_build_service_select(meta, con) for meta in services_meta]
@@ -139,8 +145,8 @@ def _assemble_and_clean(
 
     with tempfile.TemporaryDirectory(prefix="portolan-global-") as tmp:
         tmp_path = Path(tmp)
-        tmp_raw = tmp_path / "admin4_raw.parquet"
-        tmp_clean = tmp_path / "admin4_clean.parquet"
+        tmp_raw = tmp_path / "adm4_raw.parquet"
+        tmp_clean = tmp_path / "adm4_clean.parquet"
 
         con.execute(
             f"COPY (\n{union_sql}\n) TO '{tmp_raw}' (FORMAT PARQUET, COMPRESSION ZSTD)"
@@ -172,18 +178,17 @@ def _assemble_and_clean(
         """)
         logger.info("ST_CoverageClean applied")
 
-        admin4_path.parent.mkdir(parents=True, exist_ok=True)
-        _write_gpq2(tmp_clean, admin4_path)
-    logger.info("Written admin4 (%s)", admin4_path)
+        _write_gpq2(tmp_clean, adm4_path)
+    logger.info("Written adm4 (%s)", adm4_path)
 
 
 def _dissolve_level(
     con: duckdb.DuckDBPyConnection,
-    admin4_path: Path,
+    adm4_path: Path,
     out_path: Path,
     level: int,
 ) -> None:
-    """Dissolve admin4-equivalent parquet to a coarser level and write GeoParquet."""
+    """Dissolve adm4-equivalent parquet to a coarser level and write GeoParquet."""
     group_key = (
         "COALESCE(" + ", ".join(f"adm{lvl}_pcode" for lvl in range(level, 0, -1)) + ")"
     )
@@ -198,20 +203,19 @@ def _dissolve_level(
     cols_str = ",\n        ".join(select_parts)
 
     with tempfile.TemporaryDirectory(prefix="portolan-dissolve-") as tmp:
-        tmp_out = Path(tmp) / f"admin{level}.parquet"
+        tmp_out = Path(tmp) / f"adm{level}.parquet"
         con.execute(f"""
             COPY (
                 SELECT
                     {cols_str}
-                FROM read_parquet('{admin4_path}')
+                FROM read_parquet('{adm4_path}')
                 WHERE {group_key} IS NOT NULL
                 GROUP BY iso3, {group_key}
             ) TO '{tmp_out}' (FORMAT PARQUET, COMPRESSION ZSTD)
         """)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
         _write_gpq2(tmp_out, out_path)
     n = con.execute(f"SELECT count(*) FROM read_parquet('{out_path}')").fetchone()[0]
-    logger.info("Written admin%d: %d features (%s)", level, n, out_path)
+    logger.info("Written adm%d: %d features (%s)", level, n, out_path)
 
 
 def _collect_matched_state(services_meta: list[dict]) -> dict:
@@ -219,9 +223,9 @@ def _collect_matched_state(services_meta: list[dict]) -> dict:
     return {m["service_name"]: m["extended_updated"] for m in services_meta}
 
 
-def _load_stored_state(global_dir: Path) -> dict:
+def _load_stored_state(wld_dir: Path) -> dict:
     """Read persisted state from .global_state.json."""
-    state_path = global_dir / _STATE_FILE
+    state_path = wld_dir / _STATE_FILE
     if not state_path.exists():
         return {}
     with contextlib.suppress(json.JSONDecodeError, OSError):
@@ -229,99 +233,104 @@ def _load_stored_state(global_dir: Path) -> dict:
     return {}
 
 
-def _store_state(global_dir: Path, state: dict) -> None:
+def _store_state(wld_dir: Path, state: dict) -> None:
     """Write state to .global_state.json (hidden, not pushed by portolan)."""
-    (global_dir / _STATE_FILE).write_text(json.dumps(state, indent=2))
+    (wld_dir / _STATE_FILE).write_text(json.dumps(state, indent=2))
 
 
-def _parquets_exist(global_dir: Path) -> bool:
+def _parquets_exist(wld_dir: Path) -> bool:
     """Return True if all four output parquets are present."""
     return all(
-        (global_dir / f"admin{level}" / f"admin{level}.parquet").exists()
-        for level in range(1, _MAX_ADMIN + 1)
+        (wld_dir / f"adm{level}.parquet").exists() for level in range(1, _MAX_ADMIN + 1)
     )
 
 
-def _build_parquets(
-    services_meta: list[dict],
-    global_dir: Path,
-) -> None:
+def _build_parquets(services_meta: list[dict], wld_dir: Path) -> None:
     """Assemble and write all four admin-level GeoParquet files."""
-    admin4_path = global_dir / "admin4" / "admin4.parquet"
+    wld_dir.mkdir(parents=True, exist_ok=True)
+    adm4_path = wld_dir / "adm4.parquet"
     con = duckdb.connect()
     try:
         con.load_extension("spatial")
-        _assemble_and_clean(services_meta, con, admin4_path)
+        _assemble_and_clean(services_meta, con, adm4_path)
         for level in (3, 2, 1):
-            out_path = global_dir / f"admin{level}" / f"admin{level}.parquet"
-            _dissolve_level(con, admin4_path, out_path, level)
+            out_path = wld_dir / f"adm{level}.parquet"
+            _dissolve_level(con, adm4_path, out_path, level)
     finally:
         con.close()
 
 
-def _build_catalog(global_dir: Path, work_dir: Path) -> None:
-    """Run portolan add for all four layers and finalize the catalog."""
-    workers = str(PORTOLAN_WORKERS)
-    for level in (_MAX_ADMIN, 3, 2, 1):
-        if not (global_dir / f"admin{level}").exists():
-            continue
-        try:
-            _portolan(
-                ["add", f"global/admin{level}/", "--workers", workers, "--pmtiles"],
-                cwd=work_dir,
-            )
-        except CalledProcessError:
-            logger.exception("portolan add failed for admin%d", level)
-    try:
-        _portolan(["stac-geoparquet"], cwd=work_dir)
-    except CalledProcessError:
-        logger.warning("portolan stac-geoparquet: no items - skipping")
-    _portolan(["check", "--metadata", "--fix"], cwd=work_dir)
-    _portolan(["readme"], cwd=work_dir)
-
-
-def run(work_dir: Path) -> None:
-    """Assemble global COD-AB matched boundaries and push to source.coop."""
-    matched_dir = work_dir / "matched"
-    if not matched_dir.exists():
-        logger.error("matched/ not found at %s - run matched first", matched_dir)
+def _fix_stale_wld_link(work_dir: Path) -> None:
+    """Replace wld/catalog.json link with wld/collection.json in root catalog."""
+    root = work_dir / "catalog.json"
+    if not root.exists():
         return
+    data = json.loads(root.read_text())
+    changed = False
+    for link in data.get("links", []):
+        if link.get("href") == "./wld/catalog.json":
+            link["href"] = "./wld/collection.json"
+            changed = True
+    if changed:
+        root.write_text(json.dumps(data, indent=2))
 
-    global_dir = work_dir / "global"
-    global_dir.mkdir(parents=True, exist_ok=True)
 
-    latest = _latest_versioned_per_iso3(matched_dir)
-    services_meta = []
-    for _iso3, svc_dir in sorted(latest.items()):
-        meta = _get_service_meta(svc_dir)
-        if meta:
-            services_meta.append(meta)
-    logger.info("Found %d latest-versioned services", len(services_meta))
-
-    current_state = _collect_matched_state(services_meta)
-    stored = _load_stored_state(global_dir)
-    needs_rebuild = current_state != stored.get("matched_state") or not _parquets_exist(
-        global_dir
-    )
-
-    if needs_rebuild:
-        logger.info("Building global admin4-equivalent layer...")
-        _build_parquets(services_meta, global_dir)
-        _build_catalog(global_dir, work_dir)
-    else:
-        logger.info("Matched layers unchanged - skipping rebuild")
-
+def _build_catalog(_wld_dir: Path, work_dir: Path) -> None:
+    """Run portolan add for the flat wld/ dir and finalize the catalog."""
+    _fix_stale_wld_link(work_dir)
     workers = str(PORTOLAN_WORKERS)
     try:
         _portolan(
-            ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"],
+            ["add", "wld/", "--workers", workers],
             cwd=work_dir,
         )
     except CalledProcessError:
-        logger.exception("portolan push failed - global catalog not synced to S3")
+        logger.exception("portolan add failed for wld/")
+    try:
+        _portolan(["stac-geoparquet"], cwd=work_dir)
+    except CalledProcessError:
+        logger.warning("portolan stac-geoparquet: no items — skipping")
+    try:
+        _portolan(["check", "--metadata", "--fix"], cwd=work_dir)
+    except CalledProcessError:
+        logger.warning("portolan check --metadata --fix returned errors (continuing)")
+    try:
+        _portolan(["readme"], cwd=work_dir)
+    except CalledProcessError:
+        logger.warning("portolan readme failed (continuing)")
+
+
+def run(work_dir: Path) -> None:
+    """Assemble global COD-AB matched boundaries. Push handled by __main__.py."""
+    wld_dir = work_dir / "wld"
+    wld_dir.mkdir(parents=True, exist_ok=True)
+
+    latest = _latest_versioned_per_iso3(work_dir)
+    services_meta = []
+    for _iso3, version_dir in sorted(latest.items()):
+        meta = _get_service_meta(version_dir)
+        if meta:
+            services_meta.append(meta)
+    logger.info(
+        "Found %d latest-versioned services for global composite", len(services_meta)
+    )
+
+    if not services_meta:
+        logger.warning("No matched services available — skipping global build")
         return
 
-    _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
-    _portolan(["check", "--verbose"], cwd=work_dir)
-    _store_state(global_dir, {"matched_state": current_state})
+    current_state = _collect_matched_state(services_meta)
+    stored = _load_stored_state(wld_dir)
+    needs_rebuild = current_state != stored.get("matched_state") or not _parquets_exist(
+        wld_dir
+    )
+
+    if needs_rebuild:
+        logger.info("Building global adm4-equivalent layer...")
+        _build_parquets(services_meta, wld_dir)
+        _build_catalog(wld_dir, work_dir)
+        _store_state(wld_dir, {"matched_state": current_state})
+    else:
+        logger.info("Matched layers unchanged — skipping global rebuild")
+
     logger.info("Global dataset complete")

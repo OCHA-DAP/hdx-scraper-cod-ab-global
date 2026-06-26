@@ -30,11 +30,11 @@ def _patched_request(*args: Any, timeout: float = 300.0, **kwargs: Any) -> Any: 
 
 _gpio_arcgis.make_request_with_retry = _patched_request
 
-from .config import PORTOLAN_WORK_DIR  # noqa: E402
+from .config import PORTOLAN_WORK_DIR, PORTOLAN_WORKERS, SOURCECOOP_REMOTE  # noqa: E402
 from .extended import run as extended_run  # noqa: E402
 from .global_ import run as global_run  # noqa: E402
 from .matched import run as matched_run  # noqa: E402
-from .original import _ensure_root_catalog  # noqa: E402
+from .original import _ensure_root_catalog, _portolan, _push_catalog_files  # noqa: E402
 from .original import run as original_run  # noqa: E402
 
 logging.basicConfig(
@@ -53,3 +53,9 @@ original_run(work_dir)
 extended_run(work_dir)
 matched_run(work_dir)
 global_run(work_dir)
+
+# Single consolidated push after all stages complete — users never see partial state
+workers = str(PORTOLAN_WORKERS)
+_portolan(["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=work_dir)
+_push_catalog_files(work_dir, SOURCECOOP_REMOTE)
+_portolan(["check", "--verbose"], cwd=work_dir)

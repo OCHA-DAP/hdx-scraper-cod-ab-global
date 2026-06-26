@@ -7,9 +7,13 @@ and S3 push.
 
 import json
 import logging
+import re
 import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
+from shutil import copy, rmtree
 from subprocess import CalledProcessError
 from subprocess import run as _run
 from textwrap import dedent
@@ -21,7 +25,6 @@ from hdx.location.country import Country
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
-    SOURCECOOP_REMOTE,
 )
 from .utils import fetch_json, fetch_metadata_table, generate_token, list_services
 
@@ -29,12 +32,33 @@ logger = logging.getLogger(__name__)
 
 _CATALOG_TITLE = "COD-AB Administrative Boundaries"
 
-
 _PORTOLAN = str(Path(sys.executable).parent / "portolan")
 
 
 def _portolan(args: list[str], cwd: Path) -> None:
     _run([_PORTOLAN, *args], cwd=cwd, check=True)
+
+
+def _service_to_path(service_name: str) -> tuple[str, str]:
+    """Return (iso3, version) for a COD-AB service name.
+
+    cod_ab_eth_v04 → ("eth", "v04")
+    cod_ab_eth     → ("eth", "latest")
+    """
+    # cod_ab_<iso3>[_<version>] — 3 parts unversioned, 4 parts versioned
+    parts = service_name.lower().split("_")
+    iso3 = parts[2]
+    version = parts[3] if len(parts) > 3 else "latest"  # noqa: PLR2004
+    return iso3, version
+
+
+def _layer_short_name(layer_name: str, iso3: str) -> str:
+    """Shorten a layer name by stripping the iso3_admin prefix.
+
+    eth_admin1 → adm1  ·  eth_adminlines → lines  ·  eth_admincapitals → capitals
+    """
+    stripped = re.sub(rf"^{re.escape(iso3)}_admin", "", layer_name, flags=re.IGNORECASE)
+    return f"adm{stripped}" if stripped.isdigit() else stripped
 
 
 def _write_catalog_metadata(catalog_dir: Path) -> None:
@@ -183,28 +207,111 @@ def _enrich_layer_collection(layer_dir: Path, updated_iso: str) -> None:
     collection_path.write_text(json.dumps(data, indent=2))
 
 
+def inject_variant_assets(collection_path: Path, suffix: str) -> None:
+    """Add <suffix> data+tiles assets to an existing collection.json.
+
+    Uses portolan's native asset key convention: {suffix} for data,
+    {suffix}-tiles for visual tiles.
+    """
+    if not collection_path.exists():
+        return
+    data = json.loads(collection_path.read_text())
+    assets = data.setdefault("assets", {})
+    title = suffix.capitalize()
+    assets[suffix] = {
+        "href": f"./{suffix}.parquet",
+        "type": "application/vnd.apache.parquet",
+        "title": title,
+        "roles": ["data"],
+    }
+    assets[f"{suffix}-tiles"] = {
+        "href": f"./{suffix}.pmtiles",
+        "type": "application/vnd.pmtiles",
+        "title": f"{title} (tiles)",
+        "roles": ["visual"],
+    }
+    collection_path.write_text(json.dumps(data, indent=2))
+
+
+def _generate_variant_pmtiles(
+    variant_parquet: Path, layer_dir: Path, workers: str
+) -> None:
+    """Generate PMTiles for a variant parquet via an isolated temp portolan catalog."""
+    stem = variant_parquet.stem  # "extended" or "matched"
+    with tempfile.TemporaryDirectory(prefix="portolan-pmtiles-") as tmp:
+        tmp_path = Path(tmp)
+        tmp_layer = tmp_path / "svc" / stem
+        tmp_layer.mkdir(parents=True)
+        copy(variant_parquet, tmp_layer / variant_parquet.name)
+        _portolan(["init", "--title", "tmp", "--auto"], cwd=tmp_path)
+        try:
+            _portolan(
+                ["add", f"svc/{stem}/", "--workers", workers, "--pmtiles"],
+                cwd=tmp_path,
+            )
+        except CalledProcessError:
+            logger.warning("PMTiles generation failed for %s", variant_parquet.name)
+            return
+        src = tmp_layer / f"{stem}.pmtiles"
+        if src.exists():
+            copy(src, layer_dir / f"{stem}.pmtiles")
+
+
+def _hide_variant_files(version_dir: Path) -> list[tuple[Path, Path]]:
+    """Temporarily rename variant parquets so portolan only sees original.parquet."""
+    hidden: list[tuple[Path, Path]] = []
+    for layer_dir in version_dir.iterdir():
+        if not layer_dir.is_dir() or layer_dir.name.startswith("."):
+            continue
+        for suffix in ("extended", "matched"):
+            p = layer_dir / f"{suffix}.parquet"
+            if p.exists():
+                h = layer_dir / f".portolan_bak_{suffix}.parquet"
+                p.rename(h)
+                hidden.append((h, p))
+    return hidden
+
+
+def _restore_hidden_files(hidden: list[tuple[Path, Path]]) -> None:
+    for h, p in hidden:
+        if h.exists():
+            h.rename(p)
+
+
 def _extract_service(
     service_name: str,
     token: str,
-    catalog_dir: Path,
+    work_dir: Path,
     metadata: dict[str, dict],
-) -> dict[str, str]:
+) -> tuple[dict[str, str], bool]:
     """Extract all layers for one COD-AB service to GeoParquet.
 
-    Returns {layer_name: updated_iso} for all layers where lastEditDate is available,
-    to be written into each layer's collection.json after portolan add.
+    Returns (layer_updated, any_extracted) where layer_updated is
+    {layer_short: updated_iso} for layers with lastEditDate, and any_extracted
+    is True if at least one layer was actually downloaded this run.
     """
     service_url = f"{ARCGIS_SERVICES_URL}/{service_name}/FeatureServer"
     data = fetch_json(service_url, token)
 
-    service_dir = catalog_dir / service_name.lower()
+    iso3, version = _service_to_path(service_name)
+    version_dir = work_dir / iso3 / version
     layer_updated: dict[str, str] = {}
+    any_extracted = False
 
     for layer in data.get("layers", []):
         layer_id = layer["id"]
         layer_name = layer["name"].lower().replace(" ", "_")
-        layer_dir = service_dir / layer_name
-        out_path = layer_dir / f"{layer_name}.parquet"
+
+        if layer_name.endswith("_em"):
+            # ArcGIS pre-matched layers — we generate our own matched variant
+            stale = version_dir / _layer_short_name(layer_name, iso3)
+            if stale.exists():
+                rmtree(stale)
+            continue
+
+        layer_short = _layer_short_name(layer_name, iso3)
+        layer_dir = version_dir / layer_short
+        out_path = layer_dir / "original.parquet"
 
         layer_dir.mkdir(parents=True, exist_ok=True)
 
@@ -214,17 +321,15 @@ def _extract_service(
         updated_iso = _last_edit_to_iso(last_edit) if last_edit is not None else None
 
         if updated_iso is not None:
-            layer_updated[layer_name] = updated_iso
+            layer_updated[layer_short] = updated_iso
 
         if out_path.exists():
             stored = _read_stored_updated(layer_dir)
-            # Skip if: no lastEditDate (can't detect changes), timestamps match,
-            # or no stored value yet (bootstrap: trust existing parquet).
             if updated_iso is None or stored is None or updated_iso == stored:
                 logger.debug("Skipping unchanged %s", out_path)
                 continue
             logger.info(
-                "Re-extracting updated layer %s (lastEditDate changed)", layer_name
+                "Re-extracting updated layer %s (lastEditDate changed)", layer_short
             )
             out_path.unlink()
 
@@ -237,18 +342,20 @@ def _extract_service(
             continue
         table = table.sort_hilbert()
         table.write(out_path, compression_level=22, geoparquet_version="2.0")
+        any_extracted = True
 
     meta = metadata.get(service_name.lower())
-    _write_service_metadata(service_dir, service_name, meta)
-    return layer_updated
+    if version_dir.exists():
+        _write_service_metadata(version_dir, service_name, meta)
+    return layer_updated, any_extracted
 
 
 def _push_catalog_files(work_dir: Path, remote: str) -> None:
     """Upload intermediate catalog.json and README.md files to S3.
 
     portolan push handles leaf collections only. This syncs catalog.json and
-    README.md at the root, variant (original/, extended/, ...), and service
-    levels so STAC clients can navigate the full hierarchy.
+    README.md at the root, country, and service levels so STAC clients can
+    navigate the full hierarchy.
     """
     _run(
         [
@@ -286,38 +393,83 @@ def _ensure_root_catalog(work_dir: Path) -> None:
     _portolan(["init", "--title", _CATALOG_TITLE, "--auto"], cwd=work_dir)
 
 
-def _remove_stale_services(
-    services: list[str],
-    variant_dir: Path,
-    variant_prefix: str,
-    catalog_dir: Path,
-) -> None:
-    """Remove service directories no longer present in ArcGIS.
+def _remove_stale_services(services: list[str], work_dir: Path) -> None:
+    """Remove version directories no longer present in ArcGIS.
 
-    variant_dir is scanned for stale subdirectories; portolan rm is called
-    from catalog_dir (the root) using variant_prefix/service_name/ paths.
+    Scans {iso3}/{version}/ directories and calls portolan rm for any that no
+    longer correspond to an active ArcGIS service.
     """
-    current = {s.lower() for s in services}
-    for path in sorted(variant_dir.iterdir()):
-        if not path.is_dir() or path.name.startswith("."):
+    current = {_service_to_path(s) for s in services}
+    for country_dir in sorted(work_dir.iterdir()):
+        if not country_dir.is_dir() or country_dir.name.startswith("."):
             continue
-        if path.name not in current:
-            logger.info("Removing stale service %s", path.name)
-            _portolan(
-                ["rm", "--force", f"{variant_prefix}/{path.name}/"], cwd=catalog_dir
-            )
+        if country_dir.name == "wld":
+            continue
+        iso3 = country_dir.name
+        for version_dir in sorted(country_dir.iterdir()):
+            if not version_dir.is_dir() or version_dir.name.startswith("."):
+                continue
+            version = version_dir.name
+            if (iso3, version) not in current:
+                logger.info("Removing stale service %s/%s", iso3, version)
+                try:
+                    _portolan(["rm", "--force", f"{iso3}/{version}/"], cwd=work_dir)
+                except CalledProcessError:
+                    logger.warning("portolan rm failed for %s/%s", iso3, version)
+
+
+def _enrich_original_layers(version_dir: Path, layer_updated: dict[str, str]) -> None:
+    """Write updated timestamps and Original titles into layer collection.json files."""
+    for layer_short, updated_iso in layer_updated.items():
+        _enrich_layer_collection(version_dir / layer_short, updated_iso)
+    # Ensure portolan-generated original asset has a human-readable title
+    for layer_dir in version_dir.iterdir():
+        if not layer_dir.is_dir() or layer_dir.name.startswith("."):
+            continue
+        collection_path = layer_dir / "collection.json"
+        if not collection_path.exists():
+            continue
+        data = json.loads(collection_path.read_text())
+        assets = data.get("assets", {})
+        if "original" in assets and "title" not in assets["original"]:
+            assets["original"]["title"] = "Original"
+            collection_path.write_text(json.dumps(data, indent=2))
+
+
+def _add_service_to_catalog(  # noqa: PLR0913
+    service_name: str,
+    version_dir: Path,
+    iso3: str,
+    version: str,
+    meta: dict | None,
+    layer_updated: dict[str, str],
+    workers: str,
+    work_dir: Path,
+) -> None:
+    """Run portolan add for one service and apply post-add enrichments."""
+    date_valid_on = (meta.get("date_valid_on") or "").strip() if meta else ""
+    hidden = _hide_variant_files(version_dir)
+    args = ["add", f"{iso3}/{version}/", "--workers", workers, "--pmtiles"]
+    if date_valid_on:
+        args += ["--datetime", date_valid_on]
+    try:
+        _portolan(args, cwd=work_dir)
+    except CalledProcessError:
+        logger.exception("portolan add failed for %s — skipping", service_name)
+        _restore_hidden_files(hidden)
+        return
+    _restore_hidden_files(hidden)
+    if meta:
+        _enrich_service_catalog(version_dir, meta)
+    _enrich_original_layers(version_dir, layer_updated)
 
 
 def run(work_dir: Path) -> None:
     """Mirror OCHA COD-AB ArcGIS services to source.coop.
 
-    Requires: ARCGIS_USERNAME, ARCGIS_PASSWORD, AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY. Optional: SOURCECOOP_REMOTE (default points to
-    the hdx/cod-ab catalog on source.coop).
+    Requires: ARCGIS_USERNAME, ARCGIS_PASSWORD.
+    Push is handled by __main__.py after all stages complete.
     """
-    catalog_dir = work_dir / "original"
-    catalog_dir.mkdir(parents=True, exist_ok=True)
-
     token = generate_token()
     services = list_services(token)
     logger.info("Found %d COD-AB services", len(services))
@@ -325,48 +477,50 @@ def run(work_dir: Path) -> None:
     logger.info("Fetched metadata for %d services", len(metadata))
 
     service_layer_updated: dict[str, dict[str, str]] = {}
-    for service_name in sorted(services):
-        service_layer_updated[service_name] = _extract_service(
-            service_name, token, catalog_dir, metadata
-        )
+    service_extracted: dict[str, bool] = {}
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        futures = {
+            pool.submit(_extract_service, sn, token, work_dir, metadata): sn
+            for sn in sorted(services)
+        }
+        for future in as_completed(futures):
+            sn = futures[future]
+            try:
+                layer_updated, extracted = future.result()
+                service_layer_updated[sn] = layer_updated
+                service_extracted[sn] = extracted
+            except Exception:
+                logger.exception("Extraction failed for %s — skipping", sn)
+                service_layer_updated[sn] = {}
+                service_extracted[sn] = False
 
     _write_catalog_metadata(work_dir)
+    _remove_stale_services(services, work_dir)
 
     workers = str(PORTOLAN_WORKERS)
-    if catalog_dir.exists() and any(
-        d.is_dir() and not d.name.startswith(".") for d in catalog_dir.iterdir()
-    ):
-        _remove_stale_services(services, catalog_dir, "original", work_dir)
-
     for service_name in sorted(services):
-        meta = metadata.get(service_name.lower())
-        date_valid_on = (meta.get("date_valid_on") or "").strip() if meta else ""
-        args = [
-            "add",
-            f"original/{service_name.lower()}/",
-            "--workers",
-            workers,
-            "--pmtiles",
-        ]
-        if date_valid_on:
-            args += ["--datetime", date_valid_on]
-        try:
-            _portolan(args, cwd=work_dir)
-        except CalledProcessError:
-            logger.exception("portolan add failed for %s — skipping", service_name)
+        iso3, version = _service_to_path(service_name)
+        version_dir = work_dir / iso3 / version
+        if not version_dir.exists():
             continue
-        if meta:
-            _enrich_service_catalog(catalog_dir / service_name.lower(), meta)
-        service_dir = catalog_dir / service_name.lower()
-        for layer_name, iso in service_layer_updated.get(service_name, {}).items():
-            _enrich_layer_collection(service_dir / layer_name, iso)
+        # Skip portolan add when catalog already exists and nothing was re-extracted —
+        # avoids ~268 redundant catalog operations on no-change runs.
+        catalog_exists = (version_dir / "catalog.json").exists()
+        if catalog_exists and not service_extracted.get(service_name, False):
+            continue
+        _add_service_to_catalog(
+            service_name,
+            version_dir,
+            iso3,
+            version,
+            metadata.get(service_name.lower()),
+            service_layer_updated.get(service_name, {}),
+            workers,
+            work_dir,
+        )
+
     try:
         _portolan(["stac-geoparquet"], cwd=work_dir)
     except CalledProcessError:
         logger.warning("portolan stac-geoparquet: no items in catalog — skipping")
-    _portolan(
-        ["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=work_dir
-    )
-    _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
-    # TODO(portolan-sdi/portolan-cli#543): restore --strict once fixed
-    _portolan(["check", "--verbose"], cwd=work_dir)
