@@ -245,6 +245,13 @@ def _parquets_exist(wld_dir: Path) -> bool:
     )
 
 
+def _pmtiles_exist(wld_dir: Path) -> bool:
+    """Return True if all four PMTiles files are present."""
+    return all(
+        (wld_dir / f"adm{level}.pmtiles").exists() for level in range(1, _MAX_ADMIN + 1)
+    )
+
+
 def _build_parquets(services_meta: list[dict], wld_dir: Path) -> None:
     """Assemble and write all four admin-level GeoParquet files."""
     wld_dir.mkdir(parents=True, exist_ok=True)
@@ -276,12 +283,12 @@ def _fix_stale_wld_link(work_dir: Path) -> None:
 
 
 def _build_catalog(_wld_dir: Path, work_dir: Path) -> None:
-    """Run portolan add for the flat wld/ dir and finalize the catalog."""
+    """Run portolan add for the flat wld/ dir, generate PMTiles, and finalize."""
     _fix_stale_wld_link(work_dir)
     workers = str(PORTOLAN_WORKERS)
     try:
         _portolan(
-            ["add", "wld/", "--workers", workers],
+            ["add", "wld/", "--workers", workers, "--pmtiles"],
             cwd=work_dir,
         )
     except CalledProcessError:
@@ -321,8 +328,10 @@ def run(work_dir: Path) -> None:
 
     current_state = _collect_matched_state(services_meta)
     stored = _load_stored_state(wld_dir)
-    needs_rebuild = current_state != stored.get("matched_state") or not _parquets_exist(
-        wld_dir
+    needs_rebuild = (
+        current_state != stored.get("matched_state")
+        or not _parquets_exist(wld_dir)
+        or not _pmtiles_exist(wld_dir)
     )
 
     if needs_rebuild:
