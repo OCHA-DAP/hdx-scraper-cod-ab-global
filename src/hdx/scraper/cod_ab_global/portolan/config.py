@@ -21,3 +21,11 @@ SOURCECOOP_REMOTE = getenv(
 )
 PORTOLAN_WORK_DIR = getenv("PORTOLAN_WORK_DIR", "")
 PORTOLAN_WORKERS = int(getenv("PORTOLAN_WORKERS", str(min(os.cpu_count() or 4, 8))))
+
+HDX_EXPORT_OUTPUT_DIR = getenv("HDX_EXPORT_OUTPUT_DIR", "")
+# Explicit opt-in, defaulting to off — even once this pipeline is wired up as
+# the main entrypoint, actually writing to HDX requires deliberately setting
+# this (in addition to whatever hdx_site is configured in
+# ~/.hdx_configuration.yaml), so a plain `python -m ...portolan` run never
+# pushes to HDX by accident.
+HDX_EXPORT_PUSH = getenv("HDX_EXPORT_PUSH", "false").strip().lower() == "true"

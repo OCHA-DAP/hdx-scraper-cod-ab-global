@@ -30,9 +30,16 @@ def _patched_request(*args: Any, timeout: float = 300.0, **kwargs: Any) -> Any: 
 
 _gpio_arcgis.make_request_with_retry = _patched_request
 
-from .config import PORTOLAN_WORK_DIR, PORTOLAN_WORKERS, SOURCECOOP_REMOTE  # noqa: E402
+from .config import (  # noqa: E402
+    HDX_EXPORT_OUTPUT_DIR,
+    HDX_EXPORT_PUSH,
+    PORTOLAN_WORK_DIR,
+    PORTOLAN_WORKERS,
+    SOURCECOOP_REMOTE,
+)
 from .extended import run as extended_run  # noqa: E402
 from .global_ import run as global_run  # noqa: E402
+from .hdx_export import run as hdx_export_run  # noqa: E402
 from .matched import run as matched_run  # noqa: E402
 from .original import _ensure_root_catalog, _portolan, _push_catalog_files  # noqa: E402
 from .original import run as original_run  # noqa: E402
@@ -59,3 +66,21 @@ workers = str(PORTOLAN_WORKERS)
 _portolan(["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=work_dir)
 _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
 _portolan(["check", "--verbose"], cwd=work_dir)
+
+# HDX export: always builds fresh GDBs/pcodes/metadata from the catalog
+# (cheap to skip via hdx_export's own fingerprint check when nothing changed);
+# actually pushing to HDX requires the explicit HDX_EXPORT_PUSH opt-in, on top
+# of whatever hdx_site is configured in ~/.hdx_configuration.yaml.
+hdx_export_output_dir = (
+    Path(HDX_EXPORT_OUTPUT_DIR)
+    if HDX_EXPORT_OUTPUT_DIR
+    else work_dir.parent / "hdx_export_build"
+)
+if HDX_EXPORT_PUSH:
+    from hdx.api.configuration import Configuration
+
+    Configuration.create(
+        user_agent_config_yaml=Path("~").expanduser() / ".useragents.yaml",
+        user_agent_lookup="hdx-scraper-cod-global",
+    )
+hdx_export_run(work_dir, hdx_export_output_dir, push_to_hdx=HDX_EXPORT_PUSH)

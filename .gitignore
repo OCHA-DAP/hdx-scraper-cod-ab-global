@@ -173,6 +173,15 @@ cython_debug/
 # UN BNDA reference data — not cleared for redistribution, must never be committed
 /.bnda/
 
+# hdx_export fingerprint state (local skip-check cache, not portable)
+/.hdx_export/
+
+# Reference copy of production HDX resources, downloaded for migration verification
+/hdx_prod_reference/
+
+# New hdx_export build output, for diffing against hdx_prod_reference/
+/hdx_new_build/
+
 # Directory where the scraper caches data
 saved_data/
 *data*/

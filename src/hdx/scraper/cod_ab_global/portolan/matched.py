@@ -29,6 +29,7 @@ from .extended import (
 from .original import (
     _generate_variant_pmtiles,
     inject_variant_assets,
+    read_catalog,
 )
 from .utils import generate_token
 
@@ -39,15 +40,47 @@ _BNDA_URL = f"{ARCGIS_SERVICES_URL}/Global_AB_1M_fs_gray/FeatureServer/5"
 
 def _load_stored_extended_updated(version_dir: Path) -> dict[str, str]:
     """Return stored extended updated map from the version catalog.json."""
-    catalog_path = version_dir / "catalog.json"
-    if not catalog_path.exists():
-        return {}
-    raw = json.loads(catalog_path.read_text()).get("cod_ab:extended_updated")
+    raw = read_catalog(version_dir).get("cod_ab:extended_updated")
     if not raw:
         return {}
     with contextlib.suppress(json.JSONDecodeError, TypeError):
         return json.loads(raw)
     return {}
+
+
+def _clean_bnda(raw_path: Path, out_path: Path) -> None:
+    """Apply ST_CoverageClean + ST_MakeValid to raw BNDA.
+
+    Matches the old download/admin0.py gdal pipeline's clean-coverage +
+    make-valid steps, done here via DuckDB spatial instead of the gdal CLI.
+    """
+    con = duckdb.connect()
+    try:
+        con.load_extension("spatial")
+        con.execute(f"""
+            COPY (
+                WITH numbered AS (
+                    SELECT row_number() OVER () AS rn, *
+                    FROM read_parquet('{raw_path}')
+                ),
+                cleaned_coll AS (
+                    SELECT ST_CoverageClean(list(geometry ORDER BY rn)) AS c
+                    FROM numbered
+                ),
+                dumped AS (
+                    SELECT unnest(ST_Dump(c)) AS d FROM cleaned_coll
+                ),
+                cleaned AS (
+                    SELECT d.path[1] AS idx, ST_MakeValid(d.geom) AS geometry
+                    FROM dumped
+                )
+                SELECT n.* EXCLUDE (rn, geometry), c.geometry
+                FROM numbered n JOIN cleaned c ON n.rn = c.idx
+                WHERE NOT ST_IsEmpty(c.geometry)
+            ) TO '{out_path}' (FORMAT PARQUET, COMPRESSION ZSTD)
+        """)
+    finally:
+        con.close()
 
 
 def _ensure_bnda(work_dir: Path) -> Path:
@@ -64,9 +97,12 @@ def _ensure_bnda(work_dir: Path) -> Path:
     logger.info("Downloading UN BNDA boundaries from %s", _BNDA_URL)
     token = generate_token()
     table = gpio.extract_arcgis(_BNDA_URL, token=token)
-    table.sort_hilbert().write(
-        str(bnda_path), compression_level=22, geoparquet_version="2.0"
-    )
+    with tempfile.TemporaryDirectory(prefix="portolan-bnda-") as tmp:
+        raw_path = Path(tmp) / "bnda_raw.parquet"
+        clean_path = Path(tmp) / "bnda_clean.parquet"
+        table.write(str(raw_path), compression_level=15, geoparquet_version="2.0")
+        _clean_bnda(raw_path, clean_path)
+        _write_gpq2(clean_path, bnda_path)
     logger.info("Saved BNDA to %s", bnda_path)
     return bnda_path
 

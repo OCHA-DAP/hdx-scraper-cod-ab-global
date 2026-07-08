@@ -22,6 +22,8 @@ import geoparquet_io as gpio
 import yaml
 from hdx.location.country import Country
 
+from hdx.scraper.cod_ab_global.config import date_valid_on_overrides
+
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
@@ -131,11 +133,13 @@ def _enrich_service_catalog(service_dir: Path, meta: dict) -> None:
         value = meta.get(field)
         if value is not None and str(value).strip():
             data[f"cod_ab:{field}"] = value
+    iso3 = (meta.get("country_iso3") or "").upper()
     if "cod_ab:country_iso2" not in data:
-        iso3 = (meta.get("country_iso3") or "").upper()
         iso2 = Country.get_iso2_from_iso3(iso3) if iso3 else None
         if iso2:
             data["cod_ab:country_iso2"] = iso2
+    if "cod_ab:date_valid_on" not in data and iso3 in date_valid_on_overrides:
+        data["cod_ab:date_valid_on"] = date_valid_on_overrides[iso3]
     catalog_path.write_text(json.dumps(data, indent=2))
 
 
@@ -195,6 +199,42 @@ def _read_stored_updated(layer_dir: Path) -> str | None:
     if not collection_path.exists():
         return None
     return json.loads(collection_path.read_text()).get("updated")
+
+
+def read_catalog(version_dir: Path) -> dict:
+    """Return parsed catalog.json content, or {} if missing/unreadable.
+
+    Shared by extended.py/matched.py's change-detection and hdx_export's
+    fingerprinting/metadata readers so there's one place that knows how to
+    open a service's catalog.json.
+    """
+    catalog_path = version_dir / "catalog.json"
+    if not catalog_path.exists():
+        return {}
+    try:
+        return json.loads(catalog_path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def read_json_state(path: Path) -> dict:
+    """Return parsed JSON content at `path`, or {} if missing/unreadable.
+
+    Small shared helper for the "skip rebuild if fingerprint unchanged"
+    pattern used by both global_.py's `.global_state.json` and
+    hdx_export/state.py's `.hdx_export/state.json`.
+    """
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def write_json_state(path: Path, data: dict) -> None:
+    """Write `data` as indented, sort-keyed JSON to `path`."""
+    path.write_text(json.dumps(data, indent=2, sort_keys=True))
 
 
 def _enrich_layer_collection(layer_dir: Path, updated_iso: str) -> None:

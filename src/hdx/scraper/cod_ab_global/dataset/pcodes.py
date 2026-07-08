@@ -2,7 +2,6 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
-from shutil import rmtree
 
 from hdx.data.dataset import Dataset
 from hdx.data.resource import Resource
@@ -79,10 +78,10 @@ resources = [
 ]
 
 
-def _initialize_dataset(data_dir: Path) -> Dataset:
+def _initialize_dataset(output_dir: Path) -> Dataset:
     """Initialize a dataset."""
     df = read_parquet(
-        data_dir / "pcodes/global_pcodes.parquet",
+        output_dir / "pcodes/global_pcodes.parquet",
         columns=["Valid from date"],
     )
     start_date = df["Valid from date"].min().isoformat()
@@ -95,24 +94,29 @@ def _initialize_dataset(data_dir: Path) -> Dataset:
     return dataset
 
 
-def _add_resources(data_dir: Path, dataset: Dataset) -> Dataset:
+def _add_resources(output_dir: Path, dataset: Dataset) -> Dataset:
     """Add resources to a dataset."""
     for resource_data in resources:
         resource = Resource(resource_data)
-        resource.set_file_to_upload(str(data_dir / "pcodes" / resource["name"]))
+        resource.set_file_to_upload(str(output_dir / "pcodes" / resource["name"]))
         resource.set_format("CSV")
         dataset.add_update_resource(resource)
     return dataset
 
 
-def create_pcodes_dataset(data_dir: Path, info: dict) -> None:
-    """Create a dataset for the world."""
-    dataset = _initialize_dataset(data_dir)
-    dataset = _add_resources(data_dir, dataset)
+def create_pcodes_dataset(output_dir: Path, info: dict) -> None:
+    """Create a dataset for the world.
+
+    Unlike the old pipeline, does not delete `output_dir/pcodes/` afterward —
+    hdx_export's fingerprint-based skip (portolan/hdx_export/state.py) needs
+    the output to persist on disk so a later unchanged run can detect there's
+    nothing to rebuild.
+    """
+    dataset = _initialize_dataset(output_dir)
+    dataset = _add_resources(output_dir, dataset)
     dataset.create_in_hdx(
         remove_additional_resources=True,
         match_resource_order=True,
         updated_by_script=UPDATED_BY_SCRIPT,
         batch=info["batch"],
     )
-    rmtree(data_dir / "pcodes")

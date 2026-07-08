@@ -7,7 +7,6 @@ from hdx.data.resource import Resource
 from pandas import read_parquet
 
 from hdx.scraper.cod_ab_global.config import UPDATED_BY_SCRIPT
-from hdx.scraper.cod_ab_global.dataset.boundaries_utils import compare_gdb
 
 cwd = Path(__file__).parent
 
@@ -126,10 +125,10 @@ def _get_notes(admin_count: int, run_version: str) -> str:
     return _BREAK.join(paragraphs)
 
 
-def _initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
+def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
     """Initialize a dataset."""
     df = read_parquet(
-        data_dir / f"metadata/global_admin_boundaries_metadata_{run_version}.parquet",
+        output_dir / f"metadata/global_admin_boundaries_metadata_{run_version}.parquet",
         columns=["date_valid_on", "date_reviewed"],
     )
     start_date = df[df["date_valid_on"].notna()]["date_valid_on"].min().isoformat()
@@ -145,22 +144,26 @@ def _initialize_dataset(data_dir: Path, run_version: str) -> Dataset:
     return dataset
 
 
-def _add_resources(data_dir: Path, dataset: Dataset, resource_data: dict) -> Dataset:
-    """Add resources to a dataset."""
+def _add_resources(output_dir: Path, dataset: Dataset, resource_data: dict) -> Dataset:
+    """Add resources to a dataset.
+
+    Uploads whatever's currently in `output_dir` directly — no remote
+    hash-compare needed (unlike the old compare_gdb workaround): hdx_export's
+    own fingerprint check (see portolan/hdx_export/state.py) already ensures
+    this function is only reached when something in this resource's scope
+    actually changed, and an unchanged file here is byte-identical to what's
+    already on HDX (not regenerated), so CKAN sees it as a genuine no-op.
+    """
     resource_data["p_coded"] = "True"
     resource = Resource(resource_data)
-    file_to_upload = compare_gdb(
-        data_dir / "global" / resource["name"],
-        dataset.get_name_or_id(),
-    )
-    resource.set_file_to_upload(file_to_upload)
+    resource.set_file_to_upload(output_dir / resource["name"])
     resource.set_format("Geodatabase")
     dataset.add_update_resource(resource)
     return dataset
 
 
 def _add_metadata_resource(
-    data_dir: Path,
+    output_dir: Path,
     run_version: str,
     dataset: Dataset,
 ) -> Dataset:
@@ -170,7 +173,7 @@ def _add_metadata_resource(
         "description": "Associated metadata for administrative boundaries.",
     }
     resource = Resource(resource_data)
-    resource.set_file_to_upload(data_dir / "metadata" / resource_data["name"])
+    resource.set_file_to_upload(output_dir / "metadata" / resource_data["name"])
     resource.set_format("CSV")
     dataset.add_update_resource(resource)
     return dataset
@@ -186,13 +189,13 @@ def _dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
     )
 
 
-def create_boundaries_dataset(data_dir: Path, run_version: str, info: dict) -> None:
+def create_boundaries_dataset(output_dir: Path, run_version: str, info: dict) -> None:
     """Create a dataset for the world."""
     for stage in ["matched", "original", "extended"]:
-        dataset = _initialize_dataset(data_dir, run_version)
+        dataset = _initialize_dataset(output_dir, run_version)
         resource = _get_resource(run_version, stage)
-        dataset = _add_resources(data_dir, dataset, resource)
+        dataset = _add_resources(output_dir, dataset, resource)
         _dataset_create_in_hdx(dataset, info)
-    dataset = _initialize_dataset(data_dir, run_version)
-    dataset = _add_metadata_resource(data_dir, run_version, dataset)
+    dataset = _initialize_dataset(output_dir, run_version)
+    dataset = _add_metadata_resource(output_dir, run_version, dataset)
     _dataset_create_in_hdx(dataset, info)
