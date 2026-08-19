@@ -18,20 +18,19 @@ no such filling (it only ever contains real per-level data) and has no
 adm_origin column, matching the old pipeline's schema.
 
 DuckDB's `COPY ... TO (FORMAT GDAL)` cannot append a new layer to an
-already-existing .gdb file (verified experimentally: each COPY call either
-creates the file fresh or raises "already exists") — so the final multi-layer
-GDB write still uses the `gdal vector set-field-type --append` CLI loop, but
-now once per admin level (at most 5 calls per stage) instead of once per
-country (hundreds of calls in the old pipeline).
+already-existing .gdb file, so the final multi-layer GDB write instead goes
+through `GeoDataFrame.to_file(..., append=True)` (geopandas' pyogrio engine),
+once per admin level (at most 5 calls per stage).
 """
 
 import logging
 from pathlib import Path
 from shutil import make_archive, rmtree
-from subprocess import run
 from tempfile import TemporaryDirectory
 
 import duckdb
+import geopandas as gpd
+import pandas as pd
 from hdx.location.country import Country
 
 from .services import iter_included_version_dirs
@@ -184,23 +183,16 @@ def _assemble_admin_level(  # noqa: PLR0913
 
 
 def _append_layer_to_gdb(parquet_path: Path, gdb_path: Path, admin_level: int) -> None:
-    """Append one admin-level parquet as a layer into the shared GDB.
-
-    Kept as the one narrow GDAL-CLI fallback in this module: DuckDB's
-    `COPY ... TO (FORMAT GDAL)` cannot append a layer to an existing .gdb.
-    """
-    mode = ["--append"] if gdb_path.exists() else []
-    run(
-        [
-            *["gdal", "vector", "set-field-type"],
-            *[parquet_path, gdb_path],
-            *mode,
-            "--quiet",
-            f"--output-layer=admin{admin_level}",
-            *["--src-field-type=Date", "--dst-field-type=DateTime"],
-        ],
-        check=False,
-        capture_output=True,
+    """Append one admin-level parquet as a layer into the shared GDB."""
+    gdf = gpd.read_parquet(parquet_path)
+    for col in ("valid_on", "valid_to"):
+        if col in gdf.columns:
+            gdf[col] = pd.to_datetime(gdf[col])
+    gdf.to_file(
+        gdb_path,
+        layer=f"admin{admin_level}",
+        driver="OpenFileGDB",
+        append=gdb_path.exists(),
     )
 
 
