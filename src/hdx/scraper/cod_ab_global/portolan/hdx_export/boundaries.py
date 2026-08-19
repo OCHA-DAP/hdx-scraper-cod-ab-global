@@ -193,6 +193,7 @@ def _append_layer_to_gdb(parquet_path: Path, gdb_path: Path, admin_level: int) -
         layer=f"admin{admin_level}",
         driver="OpenFileGDB",
         append=gdb_path.exists(),
+        promote_to_multi=True,
     )
 
 
