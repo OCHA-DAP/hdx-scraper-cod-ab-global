@@ -28,16 +28,6 @@ iso3_exclude = [
     x.strip() for x in getenv("ISO3_EXCLUDE", "").upper().split(",") if x.strip()
 ]
 
-admin_level_full_overrides = {
-    "BGD": 4,
-    "IDN": 4,
-    "PHL": 4,
-}
-
-date_valid_on_overrides = {
-    "UKR": "2025-09-01",
-}
-
 where_filter = {
     "LBN": "adm1_pcode <> 'Conflict'",
     "PAK": "adm1_pcode not in ('PK1', 'PK3')",

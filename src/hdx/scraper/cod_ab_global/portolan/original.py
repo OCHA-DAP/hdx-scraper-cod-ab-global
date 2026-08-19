@@ -22,8 +22,6 @@ import geoparquet_io as gpio
 import yaml
 from hdx.location.country import Country
 
-from hdx.scraper.cod_ab_global.config import date_valid_on_overrides
-
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
@@ -138,8 +136,6 @@ def _enrich_service_catalog(service_dir: Path, meta: dict) -> None:
         iso2 = Country.get_iso2_from_iso3(iso3) if iso3 else None
         if iso2:
             data["cod_ab:country_iso2"] = iso2
-    if "cod_ab:date_valid_on" not in data and iso3 in date_valid_on_overrides:
-        data["cod_ab:date_valid_on"] = date_valid_on_overrides[iso3]
     catalog_path.write_text(json.dumps(data, indent=2))
 
 

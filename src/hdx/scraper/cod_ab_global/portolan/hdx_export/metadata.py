@@ -2,11 +2,10 @@
 
 Replaces download/metadata/refactor.py's output role. Every field here is
 already written into each service's catalog.json by
-portolan/original.py::_enrich_service_catalog (admin_level_full_overrides
-and date_valid_on_overrides are both applied there — see that module, not
-here) — this module only concatenates those cod_ab:* fields into the
-dataframe shape the old metadata CSV/parquet resources expect, then reuses
-the existing utils.py::save_metadata() unchanged.
+portolan/original.py::_enrich_service_catalog — this module only
+concatenates those cod_ab:* fields into the dataframe shape the old
+metadata CSV/parquet resources expect, then reuses the existing
+utils.py::save_metadata() unchanged.
 """
 
 from pathlib import Path
