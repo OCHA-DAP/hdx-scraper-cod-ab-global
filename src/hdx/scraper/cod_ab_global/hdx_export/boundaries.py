@@ -40,14 +40,11 @@ logger = logging.getLogger(__name__)
 _MAX_ADMIN = 4
 _ADM_SUFFIXES = ("_name", "_name1", "_name2", "_name3", "_pcode")
 
-# The catalog.json field whose change triggers each stage's own upstream
-# reprocessing (see portolan/extended.py and portolan/matched.py's own
-# change-detection) — used by hdx_export/state.py's fingerprint check.
-# Declared here, next to the stage-specific logic it mirrors, rather than
-# in a generic cross-cutting lookup disconnected from that logic.
+# catalog.json field(s) each stage's rebuild fingerprint depends on (state.py).
+# "extended" also tracks admin_level_full, which can change independently of it.
 FINGERPRINT_KEYS = {
     "original": "cod_ab:original_updated",
-    "extended": "cod_ab:original_updated",
+    "extended": ("cod_ab:original_updated", "cod_ab:admin_level_full"),
     "matched": "cod_ab:extended_updated",
 }
 

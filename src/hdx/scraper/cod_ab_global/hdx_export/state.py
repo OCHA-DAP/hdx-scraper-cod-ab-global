@@ -44,23 +44,25 @@ def _push_state_path(work_dir: Path) -> Path:
 
 
 def build_fingerprint(
-    version_dirs: list[tuple[str, Path]], fingerprint_key: str
+    version_dirs: list[tuple[str, Path]], fingerprint_key: str | tuple[str, ...]
 ) -> dict:
     """Build a fingerprint from the exact version_dirs a builder will process.
 
-    fingerprint_key: the catalog.json field whose change is exactly what
+    fingerprint_key: the catalog.json field(s) whose change is exactly what
     triggers this resource's own upstream reprocessing, e.g.
-    "cod_ab:original_updated" or "cod_ab:extended_updated". Pass the same
-    version_dirs list the builder itself iterates (e.g.
-    `iter_included_version_dirs(work_dir, run_version)`, or a concatenation
-    of latest+historic for a resource that spans both) so the fingerprint's
-    scope always matches what actually gets built — see metadata.py, whose
-    builder combines both run_versions in one pass.
-    Includes the resolved ISO3 include/exclude filter state so a
+    "cod_ab:original_updated" or "cod_ab:extended_updated" (a tuple covers
+    fields that can each independently change the output, e.g. "extended"
+    also tracking admin_level_full). Pass the same version_dirs list the
+    builder itself iterates (e.g. `iter_included_version_dirs(work_dir,
+    run_version)`, or a concatenation of latest+historic for a resource that
+    spans both) so the fingerprint's scope always matches what actually gets
+    built — see metadata.py, whose builder combines both run_versions in one
+    pass. Includes the resolved ISO3 include/exclude filter state so a
     filter-only change (no underlying data change) still triggers a rebuild.
     """
+    keys = fingerprint_key if isinstance(fingerprint_key, tuple) else (fingerprint_key,)
     services_fp = {
-        f"{iso3}/{version_dir.name}": read_catalog(version_dir).get(fingerprint_key)
+        f"{iso3}/{version_dir.name}": [read_catalog(version_dir).get(k) for k in keys]
         for iso3, version_dir in version_dirs
     }
     return {
