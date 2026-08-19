@@ -70,8 +70,6 @@ uv run task export
 ```shell
 # Build the image
 docker build -t hdx-scraper-cod-ab-global .
-
-# The container runs PostgreSQL with PostGIS extension internally
 ```
 
 ## Configuration Requirements
@@ -156,44 +154,11 @@ src/hdx/scraper/cod_ab_global/
 ├── process/              # Data transformation
 │   ├── boundaries.py     # Global File Geodatabase creation
 │   ├── pcodes.py         # P-codes dataset generation
-│   ├── extended_pre.py   # Pre-processing for edge extension
-│   ├── extended_post.py  # Post-processing after edge extension
 │   └── matched.py        # Edge-matching to UN boundaries
-├── edge_extender/        # Self-contained edge extension module
-│   ├── __init__.py       # Main orchestration
-│   ├── inputs.py         # Read/prepare input geometries
-│   ├── lines.py          # Extract boundary lines
-│   ├── attempt.py        # Extend edges iteratively
-│   ├── merge.py          # Merge extended edges back
-│   ├── outputs.py        # Write output geometries
-│   ├── cleanup.py        # Remove temporary files
-│   ├── points.py         # Point geometry operations
-│   ├── topology.py       # Topology validation
-│   ├── voronoi.py        # Voronoi diagram generation
-│   └── utils.py          # Shared utilities
 └── dataset/              # HDX dataset creation
     ├── boundaries.py     # Main boundaries dataset
     └── pcodes.py         # P-codes dataset
 ```
-
-### Edge Extender Module
-
-The `edge_extender` module is designed to run **without external dependencies** (no PostGIS required). It processes each country's parquet file through a functional pipeline:
-
-1. **inputs.main**: Load parquet, prepare geometries
-2. **lines.main**: Extract boundary segments
-3. **attempt.main**: Iteratively extend edges using configurable distance parameter
-4. **merge.main**: Merge extended segments back into original geometries
-5. **outputs.main**: Write processed geometries
-6. **cleanup.main**: Remove intermediate files
-
-Configuration via environment:
-
-- `EDGE_EXTENDER_DISTANCE` - Extension distance (default varies)
-- `EDGE_EXTENDER_NUM_THREADS` - Parallel processing threads
-- `EDGE_EXTENDER_QUIET` - Suppress logging
-
-The module uses a functional composition pattern (`utils.apply_funcs`) to chain operations.
 
 ### Data Flow
 
@@ -201,9 +166,7 @@ The module uses a functional composition pattern (`utils.apply_funcs`) to chain 
 ArcGIS Server (ESRIJSON)
   → download/ → GeoParquet (country/original/)
   → process/boundaries.py → File Geodatabase (global/original)
-  → process/extended_pre.py → Parquet (country/extended_pre/)
-  → edge_extender/ → Parquet (country/extended/)
-  → process/extended_post.py → Parquet (country/extended/)
+  → topo_tools.extend() → Parquet (country/extended/)
   → process/boundaries.py → File Geodatabase (global/extended)
   → process/matched.py → Parquet (country/matched/)
   → process/boundaries.py → File Geodatabase (global/matched)
@@ -283,8 +246,9 @@ Each ArcGIS layer endpoint exposes `editingInfo.lastEditDate` (Unix ms). On each
 `portolan/extended.py` mirrors edge-extended boundaries to `s3://…/hdx/cod-ab/extended/`. It runs automatically after the original mirror in `__main__.py`. Key properties:
 
 - **Source data**: reads from local `portolan/original/` (no ArcGIS calls needed)
+- **Edge extension**: runs via the external `topo-tools` package's `extend()`, a
+  DuckDB-only Voronoi boundary extension tool (no PostGIS/psycopg dependency)
 - **Content**: only polygon admin boundary layers matching `^[a-z]{3}_admin\d$` (admin0–adminN). Lines, points, capitals, and regions are excluded. Output is capped at `admin_level_full` to avoid publishing synthesised dissolve-up layers.
-- **Processing**: runs `preprocess_extended` → `edge_extender` → `postprocess_extended` per service in an isolated temp dir. Parquets are reorganised into portolan's `<layer>/<layer>.parquet` layout before ingestion.
 - **Change detection (service-level)**: if any admin polygon layer's `updated` timestamp in `original` differs from the stored value in `extended/<service>/catalog.json` (`cod_ab:original_updated`), the whole service is re-processed. The `updated` field in each extended layer's `collection.json` is set to the max `updated` across all original admin layers for that service.
 - **Stale layer cleanup**: the existing `extended/<service>/` directory is deleted before writing new results, so layers removed when `admin_level_full` shrinks (e.g. admin3 → admin2) are not left behind.
 - **Config**: `EXTENDED_SOURCECOOP_REMOTE` env var (default `s3://…/hdx/cod-ab/extended/`)

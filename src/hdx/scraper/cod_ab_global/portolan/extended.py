@@ -19,9 +19,9 @@ from shutil import copy
 import duckdb
 import geoparquet_io as gpio
 from hdx.location.country import Country
+from topo_tools import extend
 
 from hdx.scraper.cod_ab_global.config import where_filter as _where_filter
-from hdx.scraper.cod_ab_global.edge_extender import edge_extender
 
 from .config import PORTOLAN_WORKERS
 from .original import (
@@ -221,27 +221,17 @@ def _process_service(iso3: str, version: str, version_dir: Path) -> bool:
         logger.warning("Seed parquet not found: %s", seed_src)
         return False
 
-    # Use the old-style layer name the edge extender expects internally
-    internal_layer = f"{iso3}_admin{admin_level_full}"
-
     with tempfile.TemporaryDirectory(prefix="portolan-extended-") as tmp:
         temp_path = Path(tmp)
-        pre_dir = temp_path / "country" / "extended_pre"
-        pre_dir.mkdir(parents=True, exist_ok=True)
-        copy(seed_src, pre_dir / f"{internal_layer}.parquet")
-        _apply_where_filter(pre_dir / f"{internal_layer}.parquet", iso3.upper())
+        pre_path = temp_path / "pre.parquet"
+        copy(seed_src, pre_path)
+        _apply_where_filter(pre_path, iso3.upper())
 
+        post_path = temp_path / "post.parquet"
         try:
-            edge_extender(temp_path)
+            extend(pre_path, post_path, overwrite=True)
         except Exception:
             logger.exception("Edge extension failed for %s/%s", iso3, version)
-            return False
-
-        post_path = (
-            temp_path / "country" / "extended_post" / f"{internal_layer}.parquet"
-        )
-        if not post_path.exists():
-            logger.warning("Edge extender produced no output for %s/%s", iso3, version)
             return False
 
         # Remove stale extended parquets/pmtiles before writing new ones
