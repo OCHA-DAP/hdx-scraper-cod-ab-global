@@ -22,6 +22,12 @@ SOURCECOOP_REMOTE = getenv(
 PORTOLAN_WORK_DIR = getenv("PORTOLAN_WORK_DIR", "")
 PORTOLAN_WORKERS = int(getenv("PORTOLAN_WORKERS", str(min(os.cpu_count() or 4, 8))))
 
+# ArcGIS's COD_Global_Metadata table under-reports admin_level_full for these
+# countries relative to their actual adm{N}/original.parquet depth.
+admin_level_full_overrides = {
+    "QAT": 3,
+}
+
 HDX_EXPORT_OUTPUT_DIR = getenv("HDX_EXPORT_OUTPUT_DIR", "")
 # Explicit opt-in, defaulting to off — even once this pipeline is wired up as
 # the main entrypoint, actually writing to HDX requires deliberately setting

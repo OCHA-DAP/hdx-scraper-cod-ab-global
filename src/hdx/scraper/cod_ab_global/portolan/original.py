@@ -25,6 +25,7 @@ from hdx.location.country import Country
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
+    admin_level_full_overrides,
 )
 from .utils import fetch_json, fetch_metadata_table, generate_token, list_services
 
@@ -498,6 +499,9 @@ def _add_service_to_catalog(  # noqa: PLR0913
         logger.warning("portolan add reported errors for %s (continuing)", service_name)
     _restore_hidden_files(hidden)
     if meta:
+        override = admin_level_full_overrides.get(iso3.upper())
+        if override is not None:
+            meta = {**meta, "admin_level_full": override}
         _enrich_service_catalog(version_dir, meta)
     _enrich_original_layers(version_dir, layer_updated)
 
