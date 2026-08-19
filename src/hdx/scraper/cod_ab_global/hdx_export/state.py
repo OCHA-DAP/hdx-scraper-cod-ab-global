@@ -12,17 +12,16 @@ State is stored outside the portolan catalog tree — sibling to `.bnda` — so
 `portolan push`/`aws s3 sync` never touches it.
 
 Callers pass the upstream `cod_ab:*_updated` field their resource actually
-depends on (see portolan/extended.py and portolan/matched.py's own
-change-detection for what triggers each stage's reprocessing) rather than a
-scope-name that gets looked up internally — this keeps each caller's
-dependency explicit instead of encoding it in a second, easy-to-forget
-lookup table.
+depends on (see extended.py and matched.py's own change-detection for what
+triggers each stage's reprocessing) rather than a scope-name that gets
+looked up internally — this keeps each caller's dependency explicit instead
+of encoding it in a second, easy-to-forget lookup table.
 """
 
 from pathlib import Path
 
 from hdx.scraper.cod_ab_global.config import iso3_exclude, iso3_include
-from hdx.scraper.cod_ab_global.portolan.original import (
+from hdx.scraper.cod_ab_global.original import (
     read_catalog,
     read_json_state,
     write_json_state,

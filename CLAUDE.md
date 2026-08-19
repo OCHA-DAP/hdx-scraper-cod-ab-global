@@ -217,12 +217,12 @@ Some countries require SQL filters to exclude invalid/conflict geometries (see `
 
 These filters are applied during the download phase in `download/boundaries/feature.py`.
 
-## Portolan Module (`portolan/`)
+## Portolan Mirror
 
 Mirrors COD-AB ArcGIS services to source.coop. Run with:
 
 ```shell
-uv run python -m hdx.scraper.cod_ab_global.portolan
+uv run python -m hdx.scraper.cod_ab_global
 ```
 
 Set `PORTOLAN_WORK_DIR=./portolan` in `.env` to use the persistent local work directory (`portolan/` in the repo root, gitignored). Without it, a temp dir is used and all layers are re-extracted every run.
@@ -243,7 +243,7 @@ Each ArcGIS layer endpoint exposes `editingInfo.lastEditDate` (Unix ms). On each
 
 ### Extended catalog (`portolan/extended/`)
 
-`portolan/extended.py` mirrors edge-extended boundaries to `s3://…/hdx/cod-ab/extended/`. It runs automatically after the original mirror in `__main__.py`. Key properties:
+`extended.py` mirrors edge-extended boundaries to `s3://…/hdx/cod-ab/extended/`. It runs automatically after the original mirror in `__main__.py`. Key properties:
 
 - **Source data**: reads from local `portolan/original/` (no ArcGIS calls needed)
 - **Edge extension**: runs via the external `topo-tools` package's `extend()`, a
@@ -281,7 +281,7 @@ Once geoparquet-io#516 is merged and released, upgrade the package and remove th
 
 ### Workaround: geoparquet-io HTTP timeout (geoparquet-io#518)
 
-The default HTTP timeout in geoparquet_io is 60s, which is too short for large polygon layers (e.g. Philippines admin1 regions). `portolan/__main__.py` wraps `make_request_with_retry` in `arcgis.py`'s module namespace to raise the default to 300s:
+The default HTTP timeout in geoparquet_io is 60s, which is too short for large polygon layers (e.g. Philippines admin1 regions). `__main__.py` wraps `make_request_with_retry` in `arcgis.py`'s module namespace to raise the default to 300s:
 
 ```python
 import functools

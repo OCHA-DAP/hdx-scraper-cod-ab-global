@@ -2,17 +2,17 @@
 
 Replaces download/metadata/refactor.py's output role. Every field here is
 already written into each service's catalog.json by
-portolan/original.py::_enrich_service_catalog — this module only
-concatenates those cod_ab:* fields into the dataframe shape the old
-metadata CSV/parquet resources expect, then reuses the existing
-utils.py::save_metadata() unchanged.
+original.py::_enrich_service_catalog — this module only concatenates those
+cod_ab:* fields into the dataframe shape the old metadata CSV/parquet
+resources expect, then reuses the existing utils.py::save_metadata()
+unchanged.
 """
 
 from pathlib import Path
 
 from pandas import DataFrame, to_datetime
 
-from hdx.scraper.cod_ab_global.portolan.original import read_catalog
+from hdx.scraper.cod_ab_global.original import read_catalog
 from hdx.scraper.cod_ab_global.utils import save_metadata
 
 from .services import iter_included_version_dirs

@@ -32,4 +32,4 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/usr/local/bin/uv \
 
 COPY src ./src
 
-ENTRYPOINT ["python", "-m", "hdx.scraper.cod_ab_global.portolan"]
+ENTRYPOINT ["python", "-m", "hdx.scraper.cod_ab_global"]

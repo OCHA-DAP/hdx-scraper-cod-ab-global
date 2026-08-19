@@ -108,7 +108,7 @@ def create_pcodes_dataset(output_dir: Path, info: dict) -> None:
     """Create a dataset for the world.
 
     Unlike the old pipeline, does not delete `output_dir/pcodes/` afterward —
-    hdx_export's fingerprint-based skip (portolan/hdx_export/state.py) needs
+    hdx_export's fingerprint-based skip (hdx_export/state.py) needs
     the output to persist on disk so a later unchanged run can detect there's
     nothing to rebuild.
     """

@@ -1,4 +1,4 @@
-"""Entry point: python -m hdx.scraper.cod_ab_global.portolan.
+"""Entry point: python -m hdx.scraper.cod_ab_global.
 
 Requires env vars (via .env or shell):
   ARCGIS_USERNAME, ARCGIS_PASSWORD        OCHA ArcGIS credentials

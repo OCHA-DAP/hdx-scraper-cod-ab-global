@@ -149,7 +149,7 @@ def _add_resources(output_dir: Path, dataset: Dataset, resource_data: dict) -> D
 
     Uploads whatever's currently in `output_dir` directly — no remote
     hash-compare needed (unlike the old compare_gdb workaround): hdx_export's
-    own fingerprint check (see portolan/hdx_export/state.py) already ensures
+    own fingerprint check (see hdx_export/state.py) already ensures
     this function is only reached when something in this resource's scope
     actually changed, and an unchanged file here is byte-identical to what's
     already on HDX (not regenerated), so CKAN sees it as a genuine no-op.
