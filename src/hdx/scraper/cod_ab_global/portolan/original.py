@@ -492,9 +492,10 @@ def _add_service_to_catalog(  # noqa: PLR0913
     try:
         _portolan(args, cwd=work_dir)
     except CalledProcessError:
-        logger.exception("portolan add failed for %s — skipping", service_name)
-        _restore_hidden_files(hidden)
-        return
+        # portolan processes items independently; a failure (e.g. tippecanoe
+        # can't guess maxzoom for a 1-feature layer) doesn't roll back other
+        # layers already written, so still enrich what succeeded.
+        logger.warning("portolan add reported errors for %s (continuing)", service_name)
     _restore_hidden_files(hidden)
     if meta:
         _enrich_service_catalog(version_dir, meta)
