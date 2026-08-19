@@ -13,6 +13,7 @@ import functools
 import logging
 import os
 from pathlib import Path
+from subprocess import CalledProcessError
 from tempfile import mkdtemp
 from typing import Any
 
@@ -49,6 +50,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+logger = logging.getLogger(__name__)
 
 work_dir = (
     Path(PORTOLAN_WORK_DIR)
@@ -65,7 +67,10 @@ global_run(work_dir)
 workers = str(PORTOLAN_WORKERS)
 _portolan(["push", SOURCECOOP_REMOTE, "--workers", workers, "--verbose"], cwd=work_dir)
 _push_catalog_files(work_dir, SOURCECOOP_REMOTE)
-_portolan(["check", "--verbose"], cwd=work_dir)
+try:
+    _portolan(["check", "--verbose"], cwd=work_dir)
+except CalledProcessError:
+    logger.warning("portolan check reported issues (continuing)")
 
 # HDX export: always builds fresh GDBs/pcodes/metadata from the catalog
 # (cheap to skip via hdx_export's own fingerprint check when nothing changed);

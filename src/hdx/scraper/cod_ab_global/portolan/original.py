@@ -485,7 +485,8 @@ def _add_service_to_catalog(  # noqa: PLR0913
     """Run portolan add for one service and apply post-add enrichments."""
     date_valid_on = (meta.get("date_valid_on") or "").strip() if meta else ""
     hidden = _hide_variant_files(version_dir)
-    args = ["add", f"{iso3}/{version}/", "--workers", workers, "--pmtiles"]
+    # --force: --pmtiles alone skips regen when portolan sees the parquet as unchanged.
+    args = ["add", f"{iso3}/{version}/", "--workers", workers, "--pmtiles", "--force"]
     if date_valid_on:
         args += ["--datetime", date_valid_on]
     try:
@@ -498,6 +499,16 @@ def _add_service_to_catalog(  # noqa: PLR0913
     if meta:
         _enrich_service_catalog(version_dir, meta)
     _enrich_original_layers(version_dir, layer_updated)
+
+
+def _missing_original_pmtiles(version_dir: Path) -> bool:
+    """Return True if any layer with original.parquet lacks original.pmtiles."""
+    return any(
+        (layer_dir / "original.parquet").exists()
+        and not (layer_dir / "original.pmtiles").exists()
+        for layer_dir in version_dir.iterdir()
+        if layer_dir.is_dir() and not layer_dir.name.startswith(".")
+    )
 
 
 def run(work_dir: Path) -> None:
@@ -543,7 +554,11 @@ def run(work_dir: Path) -> None:
         # Skip portolan add when catalog already exists and nothing was re-extracted —
         # avoids ~268 redundant catalog operations on no-change runs.
         catalog_exists = (version_dir / "catalog.json").exists()
-        if catalog_exists and not service_extracted.get(service_name, False):
+        if (
+            catalog_exists
+            and not service_extracted.get(service_name, False)
+            and not _missing_original_pmtiles(version_dir)
+        ):
             continue
         _add_service_to_catalog(
             service_name,

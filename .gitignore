@@ -181,6 +181,7 @@ cython_debug/
 
 # New hdx_export build output, for diffing against hdx_prod_reference/
 /hdx_new_build/
+/hdx_export_build/
 
 *data*/
 !src/**/dataset/

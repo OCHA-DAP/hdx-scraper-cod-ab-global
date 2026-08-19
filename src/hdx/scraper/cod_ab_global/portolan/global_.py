@@ -18,6 +18,7 @@ from pathlib import Path
 from subprocess import CalledProcessError
 
 import duckdb
+from topo_tools import stitch as topo_stitch
 
 from .config import PORTOLAN_WORKERS
 from .extended import _write_gpq2
@@ -38,7 +39,6 @@ _COMMON_COLS = [
     "valid_on",
     "valid_to",
 ]
-_SNAPPING = 1e-9
 _STATE_FILE = ".global_state.json"
 
 
@@ -139,14 +139,15 @@ def _assemble_and_clean(
     con: duckdb.DuckDBPyConnection,
     adm4_path: Path,
 ) -> None:
-    """UNION ALL per-country deepest admin parquets, apply ST_CoverageClean, write."""
+    """UNION ALL per-country deepest admin parquets, stitch seams, write."""
     selects = [_build_service_select(meta, con) for meta in services_meta]
     union_sql = "\nUNION ALL\n".join(selects)
 
     with tempfile.TemporaryDirectory(prefix="portolan-global-") as tmp:
         tmp_path = Path(tmp)
         tmp_raw = tmp_path / "adm4_raw.parquet"
-        tmp_clean = tmp_path / "adm4_clean.parquet"
+        tmp_stitched = tmp_path / "adm4_stitched.parquet"
+        tmp_issues = tmp_path / "adm4_issues.parquet"
 
         con.execute(
             f"COPY (\n{union_sql}\n) TO '{tmp_raw}' (FORMAT PARQUET, COMPRESSION ZSTD)"
@@ -154,31 +155,10 @@ def _assemble_and_clean(
         n = con.execute(f"SELECT count(*) FROM read_parquet('{tmp_raw}')").fetchone()[0]
         logger.info("Union assembled: %d features", n)
 
-        snapping = _SNAPPING
-        con.execute(f"""
-            COPY (
-                WITH numbered AS (
-                    SELECT row_number() OVER () AS rn, *
-                    FROM read_parquet('{tmp_raw}')
-                ),
-                cleaned_coll AS (
-                    SELECT ST_CoverageClean(list(geometry ORDER BY rn), {snapping}) AS c
-                    FROM numbered
-                ),
-                dumped AS (
-                    SELECT unnest(ST_Dump(c)) AS d FROM cleaned_coll
-                ),
-                cleaned AS (
-                    SELECT d.path[1] AS idx, d.geom AS geometry FROM dumped
-                )
-                SELECT n.* EXCLUDE (rn, geometry), c.geometry
-                FROM numbered n JOIN cleaned c ON n.rn = c.idx
-                WHERE NOT ST_IsEmpty(c.geometry)
-            ) TO '{tmp_clean}' (FORMAT PARQUET, COMPRESSION ZSTD)
-        """)
-        logger.info("ST_CoverageClean applied")
+        topo_stitch(tmp_raw, tmp_stitched, tmp_issues, overwrite=True)
+        logger.info("Seams stitched")
 
-        _write_gpq2(tmp_clean, adm4_path)
+        _write_gpq2(tmp_stitched, adm4_path)
     logger.info("Written adm4 (%s)", adm4_path)
 
 
