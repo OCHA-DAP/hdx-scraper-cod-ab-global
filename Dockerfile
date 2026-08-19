@@ -16,8 +16,7 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/usr/local/bin/uv \
     --mount=type=bind,source=.git,target=/srv/.git \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        libexpat1 && \
-    apt-get install -y --no-install-recommends \
+        libexpat1 \
         build-essential \
         git \
         libsqlite3-dev \
