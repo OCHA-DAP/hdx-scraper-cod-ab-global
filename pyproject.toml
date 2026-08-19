@@ -17,7 +17,6 @@ dependencies = [
     "httpx[http2]",
     "pandas",
     "portolan-cli[pmtiles]==1.0.0a0",
-    "pyarrow",
     "python-dotenv",
     "quantulum3[classifier]",
     "tenacity",
