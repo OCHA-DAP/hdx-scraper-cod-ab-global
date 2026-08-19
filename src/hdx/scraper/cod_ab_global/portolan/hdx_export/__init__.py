@@ -5,12 +5,14 @@ without touching extraction/extension/matching — every input is already on
 disk in the portolan catalog. See the approved migration plan
 (ok-i-m-ready-for-melodic-heron.md) for full context.
 
-State is only recorded (via `state.record`) after a resource's fingerprint
-has actually taken effect: immediately after a successful build in scratch
-mode (`push_to_hdx=False`), or after a successful HDX push when
-`push_to_hdx=True`. This way a failed push doesn't get silently treated as
-"already done" on the next run — it retries both the push (and, if the
-underlying data changed again, the build) rather than skipping forever.
+Build state and push state are tracked independently (see hdx_export/state.py):
+`state.record`/`is_stale` govern only whether the local GDB/parquet gets
+rebuilt, and fire in both scratch mode (`push_to_hdx=False`) and push mode.
+`state.record_push`/`is_push_stale` govern only whether a push happens, are
+keyed by the resolved HDX site URL, and only ever fire after an actual
+successful push to that site — so a scratch-mode build (or a push to a
+different site) can never make a real, unpushed change look "already done".
+A failed push isn't recorded, so it retries next run.
 """
 
 import logging
@@ -89,45 +91,59 @@ def _build_metadata(work_dir: Path, output_dir: Path) -> tuple[bool, dict]:
     return True, fingerprint
 
 
-def _push(
+def _push(  # noqa: PLR0913
     work_dir: Path,
     output_dir: Path,
+    site_url: str,
     boundary_results: dict[tuple[str, str], tuple[bool, dict]],
     pcodes_result: tuple[bool, dict],
     metadata_result: tuple[bool, dict],
 ) -> None:
-    """Push whichever HDX datasets have a changed resource, then record state.
+    """Push whichever HDX datasets haven't reached `site_url` with their fingerprint.
 
-    Metadata's CSV is a 4th resource bundled into each run_version's
-    boundaries dataset (see dataset/boundaries.py), not pushed separately —
-    so a run_version is pushed if ANY of its 3 stages OR metadata changed.
+    Driven by state.is_push_stale, not this run's `rebuilt` flags — a
+    resource built in an earlier scratch-mode run still needs pushing here
+    if this site has never received its current fingerprint. Metadata's CSV
+    is a 4th resource bundled into each run_version's boundaries dataset
+    (see dataset/boundaries.py), not pushed separately — so a run_version is
+    pushed if ANY of its 3 stages OR metadata needs pushing.
     """
     batch = str(uuid.uuid4())
     info = {"batch": batch}
-    metadata_rebuilt, metadata_fingerprint = metadata_result
+    _, metadata_fingerprint = metadata_result
+    metadata_needs_push = state.is_push_stale(
+        work_dir, site_url, "metadata", "all", metadata_fingerprint
+    )
 
     for run_version in _RUN_VERSIONS:
-        stage_rebuilt = {
-            stage: boundary_results[stage, run_version][0] for stage in FINGERPRINT_KEYS
+        stage_fingerprints = {
+            stage: boundary_results[stage, run_version][1] for stage in FINGERPRINT_KEYS
         }
-        if not (any(stage_rebuilt.values()) or metadata_rebuilt):
-            logger.info("Nothing changed for %s — skipping HDX push", run_version)
+        stage_needs_push = {
+            stage: state.is_push_stale(work_dir, site_url, stage, run_version, fp)
+            for stage, fp in stage_fingerprints.items()
+        }
+        if not (any(stage_needs_push.values()) or metadata_needs_push):
+            logger.info("Nothing new to push for %s", run_version)
             continue
         logger.info("Pushing %s boundaries dataset to HDX", run_version)
         create_boundaries_dataset(output_dir, run_version, info)
-        for stage, rebuilt in stage_rebuilt.items():
-            if rebuilt:
-                _, fingerprint = boundary_results[stage, run_version]
+        for stage, needs_push in stage_needs_push.items():
+            if needs_push:
+                fingerprint = stage_fingerprints[stage]
                 state.record(work_dir, stage, run_version, fingerprint)
+                state.record_push(work_dir, site_url, stage, run_version, fingerprint)
 
-    if metadata_rebuilt:
+    if metadata_needs_push:
         state.record(work_dir, "metadata", "all", metadata_fingerprint)
+        state.record_push(work_dir, site_url, "metadata", "all", metadata_fingerprint)
 
-    pcodes_rebuilt, pcodes_fingerprint = pcodes_result
-    if pcodes_rebuilt:
+    pcodes_fingerprint = pcodes_result[1]
+    if state.is_push_stale(work_dir, site_url, "pcodes", "latest", pcodes_fingerprint):
         logger.info("Pushing pcodes dataset to HDX")
         create_pcodes_dataset(output_dir, info)
         state.record(work_dir, "pcodes", "latest", pcodes_fingerprint)
+        state.record_push(work_dir, site_url, "pcodes", "latest", pcodes_fingerprint)
 
 
 def run(work_dir: Path, output_dir: Path, *, push_to_hdx: bool = False) -> None:
@@ -154,4 +170,9 @@ def run(work_dir: Path, output_dir: Path, *, push_to_hdx: bool = False) -> None:
             state.record(work_dir, "metadata", "all", metadata_result[1])
         return
 
-    _push(work_dir, output_dir, boundary_results, pcodes_result, metadata_result)
+    from hdx.api.configuration import Configuration  # noqa: PLC0415
+
+    site_url = Configuration.read().get_hdx_site_url()
+    _push(
+        work_dir, output_dir, site_url, boundary_results, pcodes_result, metadata_result
+    )
