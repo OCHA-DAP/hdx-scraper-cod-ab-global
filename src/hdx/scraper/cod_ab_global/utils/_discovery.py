@@ -1,96 +1,24 @@
-"""Shared metadata-saving helpers and ArcGIS HTTP helpers."""
+"""Discover COD-AB ArcGIS service names and their COD_Global_Metadata rows."""
 
 import re
-from pathlib import Path
 
 import httpx
-from pandas import DataFrame
 
-from .config import (
-    ARCGIS_EXPIRATION,
-    ARCGIS_PASSWORD,
+from hdx.scraper.cod_ab_global.config import (
     ARCGIS_SERVER,
     ARCGIS_SERVICES_URL,
     ARCGIS_TIMEOUT,
-    ARCGIS_TOKEN_URL,
-    ARCGIS_USERNAME,
 )
 
-
-def _save_metadata_files(output_file: Path, df: DataFrame) -> None:
-    """Save metadata in parquet and csv."""
-    df.to_parquet(
-        output_file,
-        compression="zstd",
-        compression_level=15,
-        index=False,
-    )
-    df.to_csv(
-        output_file.with_suffix(".csv"),
-        index=False,
-        encoding="utf-8-sig",
-    )
-
-
-def save_metadata(output_file: Path, df_all: DataFrame) -> None:
-    """Save metadata in with all and latest versions."""
-    _save_metadata_files(
-        output_file.with_stem(output_file.stem + "_all"),
-        df_all,
-    )
-    df_latest = df_all.drop_duplicates(subset=["country_iso3"], keep="last")
-    _save_metadata_files(
-        output_file.with_stem(output_file.stem + "_latest"),
-        df_latest,
-    )
-    key_columns = ["country_iso3", "version"]
-    df_historic = df_all.merge(
-        df_latest[key_columns],
-        on=key_columns,
-        how="left",
-        indicator=True,
-    )
-    df_historic = df_historic[df_historic["_merge"] == "left_only"].drop(
-        columns=["_merge"],
-    )
-    _save_metadata_files(
-        output_file.with_stem(output_file.stem + "_historic"),
-        df_historic,
-    )
-
+from ._auth import fetch_json
 
 _METADATA_TABLE_URL = (
     f"{ARCGIS_SERVER}/server/rest/services/Hosted/COD_Global_Metadata/FeatureServer/0"
 )
 
-# Matches cod_ab_<ISO3> and cod_ab_<ISO3>_v<N> — excludes non-country entries
+# Matches cod_ab_<ISO3> and cod_ab_<ISO3>_v<N>, excludes non-country entries
 # like COD_AB_Style_Template.
 _SERVICE_RE = re.compile(r"^cod_ab_[a-z]{3}(_v\d+)?$", re.IGNORECASE)
-
-
-def generate_token() -> str:
-    """Generate an ArcGIS Enterprise token via username/password authentication."""
-    with httpx.Client(http2=True) as client:
-        r = client.post(
-            ARCGIS_TOKEN_URL,
-            data={
-                "username": ARCGIS_USERNAME,
-                "password": ARCGIS_PASSWORD,
-                "referer": f"{ARCGIS_SERVER}/portal",
-                "expiration": str(ARCGIS_EXPIRATION),
-                "f": "json",
-            },
-        )
-        r.raise_for_status()
-        return r.json()["token"]
-
-
-def fetch_json(url: str, token: str) -> dict:
-    """Fetch a JSON response from an ArcGIS REST endpoint with token auth."""
-    with httpx.Client(http2=True, timeout=ARCGIS_TIMEOUT) as client:
-        r = client.get(url, params={"f": "json", "token": token})
-        r.raise_for_status()
-        return r.json()
 
 
 def _is_newer(row: dict, current: dict | None) -> bool:
@@ -107,9 +35,8 @@ def _is_newer(row: dict, current: dict | None) -> bool:
 def fetch_metadata_table(token: str) -> dict[str, dict]:
     """Return {service_name_lower: attrs} for all COD-AB metadata rows.
 
-    Includes versioned entries (cod_ab_afg_v01) keyed via feature_server_url,
-    versioned fallback entries via (iso3, version) when the URL is malformed,
-    and unversioned entries (cod_ab_afg) mapped to the latest row per ISO3.
+    Keys unversioned entries to the latest row per ISO3 and versioned
+    entries to their own service name.
     """
     with httpx.Client(http2=True, timeout=ARCGIS_TIMEOUT) as client:
         r = client.get(
@@ -160,7 +87,7 @@ def list_services(token: str) -> list[str]:
     for s in data.get("services", []):
         if s.get("type") != "FeatureServer":
             continue
-        # Names are returned as "Hosted/service_name" — strip the folder prefix
+        # Names are returned as "Hosted/service_name", strip the folder prefix
         name = s["name"].split("/")[-1]
         if _SERVICE_RE.match(name):
             results.append(name)

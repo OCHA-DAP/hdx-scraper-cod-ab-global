@@ -187,6 +187,8 @@ cython_debug/
 *data*/
 !src/**/dataset/
 !src/**/dataset/*.py
+!src/**/hdx_export/metadata/
+!src/**/hdx_export/metadata/*.py
 
 # Version file
 **/_version.py

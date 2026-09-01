@@ -245,12 +245,12 @@ work_dir/
 ```
 
 `original/`, `extended/`, and `matched/` share the exact same relative path shape and
-layer naming (`^{iso3}_admin(\d+)$`, `catalog.py::admin_layer_pattern()`), so only the
-leading root segment changes when following one layer across variants. Each of the four
+layer naming (`^{iso3}_admin(\d+)$`, `catalog/_tree.py::admin_layer_pattern()`), so only
+the leading root segment changes when following one layer across variants. Each of the four
 trees is its own independent portolan catalog (own `.portolan/config.yaml`,
-`catalog.json`), initialised via `catalog.py::_ensure_root_catalog()`. Push happens once
+`catalog.json`), initialised via `catalog/_service.py::_ensure_root_catalog()`. Push happens once
 per tree, to its own `{SOURCECOOP_REMOTE}/{original,extended,matched,global}/` subpath,
-after all four stages complete (`__main__.py`).
+after all four stages complete (`_pipeline.py`).
 
 ### Change detection
 
@@ -261,12 +261,12 @@ Each tree fingerprints only its own immediate upstream input, independently:
   A service is skipped (no ArcGIS re-extraction) only if every layer's timestamp is
   unchanged, any change re-extracts the whole service via `extract_arcgis_catalog()`.
 - **`extended/`, `matched/`**: each fingerprints its deepest upstream seed parquet as
-  `[size, mtime_ns]` (`extended.py::file_fingerprint()`), stored in
+  `[size, mtime_ns]` (`catalog/_tree.py::file_fingerprint()`), stored in
   `<tree>/.state/fingerprints.json`. A service is reprocessed only if that fingerprint
   changed since the last run.
 - **`global/`**: fingerprints the combined set of contributing `matched/` parquets,
-  stored in `global/.state/fingerprint.json` (`global_.py::_combined_fingerprint()`). A
-  rebuild is also forced if the expected output parquets or PMTiles are missing.
+  stored in `global/.state/fingerprint.json` (`global_/_state.py::combined_fingerprint()`).
+  A rebuild is also forced if the expected output parquets or PMTiles are missing.
 
 This means a no-op re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
 and all downstream `topo_tools` recomputation for every stage.
@@ -274,9 +274,9 @@ and all downstream `topo_tools` recomputation for every stage.
 ### STAC catalog structure
 
 - `work_dir/catalog.json`, root STAC Catalog linking the four sibling trees via `child`
-  links (`catalog.py::write_top_catalog()`), rewritten every run from `__main__.py`
+  links (`catalog/_top.py::write_top_catalog()`), rewritten every run from `_pipeline.py`
   after all four stages complete; pushed to `{SOURCECOOP_REMOTE}/catalog.json` via
-  `catalog.py::push_top_catalog()`
+  `catalog/_top.py::push_top_catalog()`
 - `<tree>/<iso3>/<version>/catalog.json`, service-level STAC Catalog; `original/`'s is
   enriched with `cod_ab:*` fields from `COD_Global_Metadata`
   (`original/_metadata.py::enrich_service_catalog()`)
@@ -286,7 +286,7 @@ and all downstream `topo_tools` recomputation for every stage.
   the catalog root), hence `admin{N}/admin{N}.parquet` rather than a flat `admin{N}.parquet`
 - `portolan add` regenerates `catalog.json`/`collection.json` on every run for the
   services it touches, custom fields are re-applied afterwards
-- `catalog.py::_push_catalog_files()` syncs intermediate `catalog.json`/`README.md` at
+- `catalog/_top.py::_push_catalog_files()` syncs intermediate `catalog.json`/`README.md` at
   the root, country, and service levels to S3, since `portolan push` only handles leaf
   collections (portolan-cli#552, tracked upstream, not yet fixed)
 
@@ -301,7 +301,7 @@ and all downstream `topo_tools` recomputation for every stage.
   the `lastEditDate` fingerprinting described above, done entirely in this repo's code.
 - **[portolan-sdi/portolan-cli#552](https://github.com/portolan-sdi/portolan-cli/issues/552)**
   (open): `portolan push` skips intermediate `catalog.json` for nested collections.
-  Workaround: `catalog.py::_push_catalog_files()`.
+  Workaround: `catalog/_top.py::_push_catalog_files()`.
 - **[geoparquet/geoparquet-io#501](https://github.com/geoparquet/geoparquet-io/issues/501)**
   (open): GDAL misdetects ESRIJSON as GeoJSON when a response's `features[]` array
   precedes the ESRIJSON-identifying keys, common on ArcGIS Hosted FeatureServer
@@ -321,5 +321,6 @@ and all downstream `topo_tools` recomputation for every stage.
 ### HTTP timeout for large layers
 
 Large polygon layers (e.g. Philippines admin1 regions) can exceed the default 60s HTTP
-timeout. `original/_extract.py` passes `timeout=300` in `ExtractionOptions`, `matched.py`'s
-one-off UN BNDA download passes `timeout=300` directly to `gpio.extract_arcgis()`.
+timeout. `original/_extract.py` passes `timeout=300` in `ExtractionOptions`,
+`matched/_bnda.py`'s one-off UN BNDA download passes `timeout=300` directly to
+`gpio.extract_arcgis()`.
