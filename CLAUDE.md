@@ -306,6 +306,13 @@ and all downstream `topo_tools` recomputation for every stage.
   before GDAL sees the payload.
 - **[portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)**
   (closed): native auth support (`ExtractionOptions.token`) landed, no workaround needed.
+- **[geoparquet/geoparquet-io#786](https://github.com/geoparquet/geoparquet-io/pull/786)**
+  (open PR): `esriFieldTypeBigInteger` (and `DateOnly`/`TimeOnly`) are missing from
+  `TYPE_MAPPING` in `_build_schema_from_layer_info`, so fields of that type are silently
+  coerced to string instead of int64. Workaround: `original.py` monkeypatches
+  `geoparquet_io.core.arcgis._build_schema_from_layer_info` to force `int64` on any field
+  whose declared type is `esriFieldTypeBigInteger`; safe to leave in place once the PR
+  merges, since re-applying the same mapping is a no-op.
 
 ### HTTP timeout for large layers
 

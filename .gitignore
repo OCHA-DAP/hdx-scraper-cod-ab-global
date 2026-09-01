@@ -200,3 +200,5 @@ cython_debug/
 # test results
 test-results.xml
 .claude/
+
+.playwright-cli/
