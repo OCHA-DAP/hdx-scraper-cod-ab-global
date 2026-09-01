@@ -2,6 +2,7 @@
 
 import logging
 from os import cpu_count, environ, getenv
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -71,3 +72,5 @@ HDX_EXPORT_PUSH = getenv("HDX_EXPORT_PUSH", "false").strip().lower() == "true"
 admin_level_full_overrides = {
     "QAT": 3,
 }
+
+ADMIN_SCHEMA_PATH = Path(__file__).parent / "config" / "admin_schema.yaml"

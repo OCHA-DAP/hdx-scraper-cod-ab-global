@@ -1,26 +1,7 @@
-"""Assemble per-stage global GDBs for HDX from the portolan catalog.
+"""Assemble per-stage global GDBs for HDX from original/, extended/, matched/.
 
-Replaces process/boundaries.py. Reads directly from the persistent portolan
-catalog instead of a throwaway download tree, and only includes services
-resolved by `services.py` for the given run_version.
-
-`original.parquet` is a raw ArcGIS extract and needs projecting to the old
-pipeline's canonical schema (iso2/iso3 injected, fixed column set/order) —
-done via DuckDB SQL, no GDAL CLI. `extended.parquet`/`matched.parquet` are
-already canonical but need one more transform: per the published resource
-notes ("lower levels are filled in with higher ones if they don't exist...
-only layers with full coverage are used for these two resources"), a
-country whose real depth stops at e.g. admin2 must still appear in the
-admin3/admin4 layers, with its admin2 polygons duplicated upward and an
-`adm_origin` column recording the true native depth — this exactly matches
-the old process/extended_post.py::_adm_dissolve_up behavior. `original` has
-no such filling (it only ever contains real per-level data) and has no
-adm_origin column, matching the old pipeline's schema.
-
-DuckDB's `COPY ... TO (FORMAT GDAL)` cannot append a new layer to an
-already-existing .gdb file, so the final multi-layer GDB write instead goes
-through `GeoDataFrame.to_file(..., append=True)` (geopandas' pyogrio engine),
-once per admin level (at most 5 calls per stage).
+Extended/matched fill a shallower country up to each target level; original
+never fills, since every level it has is real per-level ArcGIS data.
 """
 
 import logging
@@ -39,14 +20,6 @@ logger = logging.getLogger(__name__)
 
 _MAX_ADMIN = 4
 _ADM_SUFFIXES = ("_name", "_name1", "_name2", "_name3", "_pcode")
-
-# catalog.json field(s) each stage's rebuild fingerprint depends on (state.py).
-# "extended" also tracks admin_level_full, which can change independently of it.
-FINGERPRINT_KEYS = {
-    "original": "cod_ab:original_updated",
-    "extended": ("cod_ab:original_updated", "cod_ab:admin_level_full"),
-    "matched": "cod_ab:extended_updated",
-}
 
 
 def _admin_col_pairs(max_level: int) -> list[tuple[int, str]]:
@@ -98,13 +71,13 @@ def _project_original(
 
 
 def _deepest_level(
-    version_dir: Path, stage: str, min_level: int, max_level: int
+    version_dir: Path, iso3: str, min_level: int, max_level: int
 ) -> int | None:
-    """Return the highest N in [min_level, max_level] with adm{N}/{stage}.parquet."""
+    """Return the highest N in [min_level, max_level] with a native admin parquet."""
     levels = [
         n
         for n in range(min_level, max_level + 1)
-        if (version_dir / f"adm{n}" / f"{stage}.parquet").exists()
+        if (version_dir / f"{iso3}_admin{n}" / f"{iso3}_admin{n}.parquet").exists()
     ]
     return max(levels) if levels else None
 
@@ -156,17 +129,19 @@ def _assemble_admin_level(  # noqa: PLR0913
     selects = []
     for iso3, version_dir in version_dirs:
         if stage == "original":
-            parquet_path = version_dir / f"adm{admin_level}" / "original.parquet"
+            layer_name = f"{iso3}_admin{admin_level}"
+            parquet_path = version_dir / layer_name / f"{layer_name}.parquet"
             if not parquet_path.exists():
                 continue
             selects.append(_project_original(iso3, admin_level, parquet_path, con))
             continue
 
-        deepest = _deepest_level(version_dir, stage, min_level, _MAX_ADMIN)
+        deepest = _deepest_level(version_dir, iso3, min_level, _MAX_ADMIN)
         if deepest is None:
             continue
         source_level = min(admin_level, deepest)
-        parquet_path = version_dir / f"adm{source_level}" / f"{stage}.parquet"
+        source_layer_name = f"{iso3}_admin{source_level}"
+        parquet_path = version_dir / source_layer_name / f"{source_layer_name}.parquet"
         selects.append(_project_filled(admin_level, deepest, parquet_path))
 
     if not selects:
@@ -207,19 +182,20 @@ def _max_original_level(
     own original GDB includes that admin5 layer.
     """
     max_seen = 0
-    for _iso3, version_dir in version_dirs:
+    for iso3, version_dir in version_dirs:
         for n in range(upper_bound, -1, -1):
-            if (version_dir / f"adm{n}" / "original.parquet").exists():
+            layer_name = f"{iso3}_admin{n}"
+            if (version_dir / layer_name / f"{layer_name}.parquet").exists():
                 max_seen = max(max_seen, n)
                 break
     return max_seen
 
 
 def build_boundaries_gdb(
-    work_dir: Path, run_version: str, stage: str, output_dir: Path
+    root_dir: Path, run_version: str, stage: str, output_dir: Path
 ) -> Path:
     """Assemble one stage's global GDB for a run_version. Returns the zip path."""
-    version_dirs = iter_included_version_dirs(work_dir, run_version)
+    version_dirs = iter_included_version_dirs(root_dir, run_version)
     output_dir.mkdir(parents=True, exist_ok=True)
     gdb_path = output_dir / f"global_admin_boundaries_{stage}_{run_version}.gdb"
     rmtree(gdb_path, ignore_errors=True)

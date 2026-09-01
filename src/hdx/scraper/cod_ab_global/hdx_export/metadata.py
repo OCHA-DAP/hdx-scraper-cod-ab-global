@@ -17,11 +17,6 @@ from hdx.scraper.cod_ab_global.utils import save_metadata
 
 from .services import iter_included_version_dirs
 
-# Reads catalog.json fields written at the "original" stage — see
-# boundaries.py's FINGERPRINT_KEYS for why this lives next to each module's
-# own logic rather than in a generic cross-cutting lookup.
-FINGERPRINT_KEY = "cod_ab:original_updated"
-
 _COUNT_COLUMNS = [
     "admin_1_count",
     "admin_2_count",
@@ -86,11 +81,11 @@ def _read_service_row(version_dir: Path) -> dict | None:
     return {col: data.get(f"cod_ab:{col}") for col in _COLUMNS}
 
 
-def build_metadata(work_dir: Path, output_file: Path) -> None:
+def build_metadata(original_dir: Path, output_file: Path) -> None:
     """Build and save the global metadata parquet/CSV (_all/_latest/_historic)."""
     version_dirs = [
-        *iter_included_version_dirs(work_dir, "latest"),
-        *iter_included_version_dirs(work_dir, "historic"),
+        *iter_included_version_dirs(original_dir, "latest"),
+        *iter_included_version_dirs(original_dir, "historic"),
     ]
     rows = []
     for _iso3, version_dir in version_dirs:

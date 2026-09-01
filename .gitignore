@@ -169,6 +169,7 @@ cython_debug/
 
 # Portolan work directory (repo root only — not the Python module)
 /portolan/
+/portolan_old/
 
 # UN BNDA reference data — not cleared for redistribution, must never be committed
 /.bnda/

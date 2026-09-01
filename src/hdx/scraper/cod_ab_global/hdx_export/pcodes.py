@@ -16,11 +16,6 @@ from .services import resolve_services
 
 ADMIN_2 = 2
 
-# Reads original.parquet for latest-only services — depends on the same
-# upstream field as the "original" boundaries stage. See boundaries.py's
-# FINGERPRINT_KEYS for why this lives next to each module's own logic.
-FINGERPRINT_KEY = "cod_ab:original_updated"
-
 headers_pcodes = {
     "Location": ["#country+code"],
     "Admin Level": ["#geo+admin_level"],
@@ -57,14 +52,15 @@ def _save_outputs(pcodes_dir: Path, stem: str, headers: dict, df: DataFrame) -> 
 
 
 def _read_level(
-    work_dir: Path, level: int, columns: list[str], con: duckdb.DuckDBPyConnection
+    original_dir: Path, level: int, columns: list[str], con: duckdb.DuckDBPyConnection
 ) -> DataFrame:
     """Read one admin level across all included latest services, iso3 injected."""
-    services = resolve_services(work_dir, "latest")
+    services = resolve_services(original_dir, "latest")
     cols_str = ", ".join(c for c in columns if c != "iso3")
     selects = []
     for iso3, version_dirs in services.items():
-        parquet_path = version_dirs[0] / f"adm{level}" / "original.parquet"
+        layer_name = f"{iso3}_admin{level}"
+        parquet_path = version_dirs[0] / layer_name / f"{layer_name}.parquet"
         if not parquet_path.exists():
             continue
         selects.append(
@@ -77,17 +73,17 @@ def _read_level(
 
 
 def _get_adm0_pcode_lengths(
-    work_dir: Path, con: duckdb.DuckDBPyConnection
+    original_dir: Path, con: duckdb.DuckDBPyConnection
 ) -> DataFrame:
     """Generate a global p-code length list."""
-    df = _read_level(work_dir, 0, ["adm0_pcode", "iso3"], con)
+    df = _read_level(original_dir, 0, ["adm0_pcode", "iso3"], con)
     df = df.rename(columns={"iso3": "Location"})
     df["Country Length"] = df["adm0_pcode"].str.len()
     return df[["Location", "Country Length"]]
 
 
 def _generate_pcode_lengths(
-    work_dir: Path, pcodes_dir: Path, df: DataFrame, con: duckdb.DuckDBPyConnection
+    original_dir: Path, pcodes_dir: Path, df: DataFrame, con: duckdb.DuckDBPyConnection
 ) -> None:
     """Generate a global p-code length list."""
     df = df[
@@ -123,9 +119,9 @@ def _generate_pcode_lengths(
             },
         )
     )
-    df_country = _get_adm0_pcode_lengths(work_dir, con)
+    df_country = _get_adm0_pcode_lengths(original_dir, con)
     df_lengths = df_lengths.merge(df_country, on="Location", how="left")
-    df_lengths = df_lengths[headers_lengths.keys()]
+    df_lengths = df_lengths.reindex(columns=headers_lengths.keys())
     _save_outputs(pcodes_dir, "global_pcode_lengths", headers_lengths, df_lengths)
 
 
@@ -136,7 +132,7 @@ def _save_pcodes(pcodes_dir: Path, df_all: DataFrame) -> None:
     _save_outputs(pcodes_dir, "global_pcodes_adm_1_2", headers_pcodes, df_all)
 
 
-def build_pcodes(work_dir: Path, output_dir: Path) -> Path:
+def build_pcodes(original_dir: Path, output_dir: Path) -> Path:
     """Generate the global p-code list. Returns the pcodes output directory."""
     con = duckdb.connect()
     try:
@@ -159,7 +155,7 @@ def build_pcodes(work_dir: Path, output_dir: Path) -> Path:
                 "valid_on",
                 "version",
             ]
-            df = _read_level(work_dir, level, columns, con)
+            df = _read_level(original_dir, level, columns, con)
             df["Admin Level"] = level
             df["Name"] = df[name_columns].bfill(axis=1).iloc[:, 0]
             df["Parent P-Code"] = df[f"adm{level - 1}_pcode"]
@@ -181,7 +177,7 @@ def build_pcodes(work_dir: Path, output_dir: Path) -> Path:
                 .drop_duplicates()
                 .drop_duplicates(subset=["P-Code"], keep=False)
             )
-        _generate_pcode_lengths(work_dir, pcodes_dir, df_all, con)
+        _generate_pcode_lengths(original_dir, pcodes_dir, df_all, con)
         df_all["Parent P-Code"] = df_all.apply(
             lambda x: x["Parent P-Code"] if x["Admin Level"] > 1 else x["Location"],
             axis=1,

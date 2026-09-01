@@ -219,91 +219,96 @@ These filters are applied during the download phase in `download/boundaries/feat
 
 ## Portolan Mirror
 
-Mirrors COD-AB ArcGIS services to source.coop. Run with:
+Mirrors COD-AB ArcGIS services to source.coop as four independent sibling portolan
+catalogs under one work directory. Run with:
 
 ```shell
 uv run python -m hdx.scraper.cod_ab_global
 ```
 
-Set `PORTOLAN_WORK_DIR=./portolan` in `.env` to use the persistent local work directory (`portolan/` in the repo root, gitignored). Without it, a temp dir is used and all layers are re-extracted every run.
+Set `PORTOLAN_WORK_DIR=./portolan` in `.env` to use a persistent local work directory
+(gitignored). Without it, a temp dir is used and everything is rebuilt from scratch.
 
-### Change detection via `lastEditDate`
+### Four sibling trees
 
-Each ArcGIS layer endpoint exposes `editingInfo.lastEditDate` (Unix ms). On each run, `_extract_service` fetches this for every layer and compares it to the `updated` field stored in the layer's local `collection.json` (written after `portolan add` by `_enrich_layer_collection`). Layers are skipped if the timestamp matches; re-extracted if it changed.
+```
+work_dir/
+  original/   native ArcGIS mirror, via portolan_cli's extract_arcgis_catalog()
+    <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet
+  extended/   this repo's edge-extension (topo_tools.edge_extend/dissolve)
+    <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet   (same layout as original/)
+  matched/    edge-matched to UN Geodata 1:1M via topo_tools.edge_clip
+    <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet   (admin0 excluded)
+  global/     cross-country composite, no iso3 anywhere in its path
+    admin{1..4}/admin{N}.parquet
+  .bnda/        UN BNDA download, outside all four catalogs
+```
 
-**Bootstrap:** if a parquet exists but `collection.json` has no `updated` field (first run after adding this feature, or a layer that doesn't expose `lastEditDate`), the layer is skipped and the current timestamp recorded. No re-extraction occurs.
+`original/`, `extended/`, and `matched/` share the exact same relative path shape and
+layer naming (`^{iso3}_admin(\d+)$`, `original.py::admin_layer_pattern()`), so only the
+leading root segment changes when following one layer across variants. Each of the four
+trees is its own independent portolan catalog (own `.portolan/config.yaml`,
+`catalog.json`), initialised via `original.py::_ensure_root_catalog()`. Push happens once
+per tree, to its own `{SOURCECOOP_REMOTE}/{original,extended,matched,global}/` subpath,
+after all four stages complete (`__main__.py`).
 
-**Removing this workaround:** once [portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546) and [#545](https://github.com/portolan-sdi/portolan-cli/issues/545) land, replace `_extract_service` with native `portolan extract arcgis` and remove `_enrich_layer_collection`, `_read_stored_updated`, and `_last_edit_to_iso`. The `portolan/` work directory and `collection.json` files on S3 are unaffected.
+### Change detection
+
+Each tree fingerprints only its own immediate upstream input, independently:
+
+- **`original/`**: `original.py::_extract_service()` fetches `editingInfo.lastEditDate`
+  per ArcGIS layer and compares it to the value stored in `original/.state/fingerprints.json`.
+  A service is skipped (no ArcGIS re-extraction) only if every layer's timestamp is
+  unchanged, any change re-extracts the whole service via `extract_arcgis_catalog()`.
+- **`extended/`, `matched/`**: each fingerprints its deepest upstream seed parquet as
+  `[size, mtime_ns]` (`extended.py::file_fingerprint()`), stored in
+  `<tree>/.state/fingerprints.json`. A service is reprocessed only if that fingerprint
+  changed since the last run.
+- **`global/`**: fingerprints the combined set of contributing `matched/` parquets,
+  stored in `global/.state/fingerprint.json` (`global_.py::_combined_fingerprint()`). A
+  rebuild is also forced if the expected output parquets or PMTiles are missing.
+
+This means a no-op re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
+and all downstream `topo_tools` recomputation for every stage.
 
 ### STAC catalog structure
 
-- `portolan/original/<service>/catalog.json` — service-level STAC Catalog, enriched with `cod_ab:*` fields from `COD_Global_Metadata`
-- `portolan/original/<service>/<layer>/collection.json` — layer-level STAC Collection, includes native `updated` field (source `lastEditDate` as ISO 8601)
-- `portolan add` regenerates both files on every run; custom fields are re-applied afterwards by `_enrich_service_catalog` and `_enrich_layer_collection`
+- `<tree>/<iso3>/<version>/catalog.json`, service-level STAC Catalog; `original/`'s is
+  enriched with `cod_ab:*` fields from `COD_Global_Metadata`
+  (`original.py::_enrich_service_catalog()`)
+- `<tree>/<iso3>/<version>/<iso3>_admin{N}/collection.json`, layer-level STAC Collection
+- `global/admin{N}/collection.json`, one collection per admin level. `global/` layers must
+  live in a subdirectory (portolan requires data assets to be inside a collection, not at
+  the catalog root), hence `admin{N}/admin{N}.parquet` rather than a flat `admin{N}.parquet`
+- `portolan add` regenerates `catalog.json`/`collection.json` on every run for the
+  services it touches, custom fields are re-applied afterwards
+- `original.py::_push_catalog_files()` syncs intermediate `catalog.json`/`README.md` at
+  the root, country, and service levels to S3, since `portolan push` only handles leaf
+  collections (portolan-cli#552, tracked upstream, not yet fixed)
 
-### Extended catalog (`portolan/extended/`)
+### Known upstream issues (workarounds applied locally)
 
-`extended.py` mirrors edge-extended boundaries to `s3://…/hdx/cod-ab/extended/`. It runs automatically after the original mirror in `__main__.py`. Key properties:
+- **[portolan-sdi/portolan-cli#855](https://github.com/portolan-sdi/portolan-cli/issues/855)**
+  (open): `discover_layers()` has no `token` param, unlike `discover_services()`, breaking
+  discovery against token-gated ArcGIS servers. Workaround: `original.py` monkeypatches
+  `portolan_cli.extract.arcgis.discovery._fetch_json` to inject the stored token.
+- **[portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)**
+  (open): no native freshness-aware resume in `extract_arcgis_catalog()`. Workaround:
+  the `lastEditDate` fingerprinting described above, done entirely in this repo's code.
+- **[portolan-sdi/portolan-cli#552](https://github.com/portolan-sdi/portolan-cli/issues/552)**
+  (open): `portolan push` skips intermediate `catalog.json` for nested collections.
+  Workaround: `_push_catalog_files()`.
+- **[geoparquet/geoparquet-io#501](https://github.com/geoparquet/geoparquet-io/issues/501)**
+  (open): GDAL misdetects ESRIJSON as GeoJSON when a response's `features[]` array
+  precedes the ESRIJSON-identifying keys, common on ArcGIS Hosted FeatureServer
+  responses. Workaround: `original.py` monkeypatches
+  `geoparquet_io.core.arcgis._esrijson_page_to_table` to reorder those keys to the front
+  before GDAL sees the payload.
+- **[portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)**
+  (closed): native auth support (`ExtractionOptions.token`) landed, no workaround needed.
 
-- **Source data**: reads from local `portolan/original/` (no ArcGIS calls needed)
-- **Edge extension**: runs via the external `topo-tools` package's `extend()`, a
-  DuckDB-only Voronoi boundary extension tool (no PostGIS/psycopg dependency)
-- **Content**: only polygon admin boundary layers matching `^[a-z]{3}_admin\d$` (admin0–adminN). Lines, points, capitals, and regions are excluded. Output is capped at `admin_level_full` to avoid publishing synthesised dissolve-up layers.
-- **Change detection (service-level)**: if any admin polygon layer's `updated` timestamp in `original` differs from the stored value in `extended/<service>/catalog.json` (`cod_ab:original_updated`), the whole service is re-processed. The `updated` field in each extended layer's `collection.json` is set to the max `updated` across all original admin layers for that service.
-- **Stale layer cleanup**: the existing `extended/<service>/` directory is deleted before writing new results, so layers removed when `admin_level_full` shrinks (e.g. admin3 → admin2) are not left behind.
-- **Config**: `EXTENDED_SOURCECOOP_REMOTE` env var (default `s3://…/hdx/cod-ab/extended/`)
+### HTTP timeout for large layers
 
-### Local patch: geoparquet-io int32→timestamp cast (geoparquet-io#516)
-
-**`uv sync` will overwrite this patch — re-apply it if Niger extraction starts failing again.**
-
-`cod_ab_ner_v01` has date fields (`valid_on`, `valid_to`) where epoch-zero values cause DuckDB to infer `int32` instead of `int64`. PyArrow cannot cast `int32 → timestamp` directly. The fix (cast via `int64` as intermediate) is patched into the installed `.venv` copy:
-
-File: `.venv/lib/python3.14/site-packages/geoparquet_io/core/arcgis.py`, just before the `page_table.cast(target_schema, safe=True)` call (~line 1140). Insert this upcast block:
-
-```python
-# Upcast int32 → int64 where the target is timestamp, before casting.
-# DuckDB infers int32 for epoch-zero date values; PyArrow cannot cast
-# int32 → timestamp directly (needs int64). (geoparquet-io#516)
-for i in range(page_table.num_columns):
-    if (
-        pa.types.is_timestamp(target_schema.field(i).type)
-        and page_table.schema.field(i).type == pa.int32()
-    ):
-        page_table = page_table.set_column(
-            i,
-            target_schema.field(i).name,
-            page_table.column(i).cast(pa.int64()),
-        )
-```
-
-Once geoparquet-io#516 is merged and released, upgrade the package and remove this note.
-
-### Workaround: geoparquet-io HTTP timeout (geoparquet-io#518)
-
-The default HTTP timeout in geoparquet_io is 60s, which is too short for large polygon layers (e.g. Philippines admin1 regions). `__main__.py` wraps `make_request_with_retry` in `arcgis.py`'s module namespace to raise the default to 300s:
-
-```python
-import functools
-import geoparquet_io.core.arcgis as _gpio_arcgis
-
-_orig_request = _gpio_arcgis.make_request_with_retry
-
-@functools.wraps(_orig_request)
-def _patched_request(*args, timeout=300.0, **kwargs):
-    return _orig_request(*args, timeout=timeout, **kwargs)
-
-_gpio_arcgis.make_request_with_retry = _patched_request
-```
-
-Patching `geoparquet_io.core.http_retry.DEFAULT_TIMEOUT` does **not** work — the timeout default is baked into the function at definition time, and `arcgis.py` holds a direct reference to the original function object.
-
-Once geoparquet-io#518 is resolved (timeout parameter on `arcgis_to_table`), pass `timeout=300` to `gpio.extract_arcgis()` and remove the monkey-patch.
-
-### Known limitations (upstream portolan-cli issues)
-
-Two features are missing from `portolan extract arcgis` and tracked upstream:
-
-- **No authentication support** ([portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)): `portolan extract arcgis` has no `--token`/`--username`/`--password` options. We work around this by calling `geoparquet_io.extract_arcgis()` directly and using portolan only for catalog management and S3 push. Once #545 lands, we can switch to `portolan extract arcgis` natively and gain `--resume` support.
-
-- **No change detection** ([portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)): Worked around locally via `editingInfo.lastEditDate` stored in each layer's `collection.json` `updated` field — see "Change detection" section above. Once #546 lands natively, the workaround can be removed.
+Large polygon layers (e.g. Philippines admin1 regions) can exceed the default 60s HTTP
+timeout. `original.py` passes `timeout=300` in `ExtractionOptions`, `matched.py`'s
+one-off UN BNDA download passes `timeout=300` directly to `gpio.extract_arcgis()`.

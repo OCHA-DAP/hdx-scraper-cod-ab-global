@@ -1,34 +1,37 @@
 """Fingerprint-based skip logic for HDX resource rebuilds.
 
-Replaces dataset/boundaries_utils.py::compare_gdb's remote-download-and-hash
-approach (which paid a network + GDAL-conversion cost every run just to
-avoid a spurious HDX "last modified" bump) with a cheap local fingerprint
-check, following the same pattern as portolan/global_.py's
-`.global_state.json`: skip rebuilding (and re-uploading) a resource
-entirely when nothing in its scope has changed since the last successful
-build.
-
-State is stored outside the portolan catalog tree — sibling to `.bnda` — so
-`portolan push`/`aws s3 sync` never touches it.
-
-Callers pass the upstream `cod_ab:*_updated` field their resource actually
-depends on (see extended.py and matched.py's own change-detection for what
-triggers each stage's reprocessing) rather than a scope-name that gets
-looked up internally — this keeps each caller's dependency explicit instead
-of encoding it in a second, easy-to-forget lookup table.
+State is stored sibling to `.bnda`, outside any of the four catalog trees.
 """
 
 from pathlib import Path
 
 from hdx.scraper.cod_ab_global.config import iso3_exclude, iso3_include
 from hdx.scraper.cod_ab_global.original import (
-    read_catalog,
+    admin_layer_pattern,
     read_json_state,
     write_json_state,
 )
 
 _STATE_FILE = "state.json"
 _PUSH_STATE_FILE = "push_state.json"
+
+
+def _deepest_layer_fingerprint(version_dir: Path, iso3: str) -> list[int] | None:
+    """Return [level, size, mtime_ns] for the deepest existing admin parquet."""
+    pattern = admin_layer_pattern(iso3)
+    levels = [
+        int(m.group(1))
+        for d in version_dir.iterdir()
+        if d.is_dir()
+        and (m := pattern.match(d.name))
+        and (d / f"{d.name}.parquet").exists()
+    ]
+    if not levels:
+        return None
+    level = max(levels)
+    layer_name = f"{iso3}_admin{level}"
+    stat = (version_dir / layer_name / f"{layer_name}.parquet").stat()
+    return [level, stat.st_size, stat.st_mtime_ns]
 
 
 def _state_path(work_dir: Path) -> Path:
@@ -43,28 +46,13 @@ def _push_state_path(work_dir: Path) -> Path:
     return state_dir / _PUSH_STATE_FILE
 
 
-def build_fingerprint(
-    version_dirs: list[tuple[str, Path]], fingerprint_key: str | tuple[str, ...]
-) -> dict:
-    """Build a fingerprint from the exact version_dirs a builder will process.
-
-    fingerprint_key: the catalog.json field(s) whose change is exactly what
-    triggers this resource's own upstream reprocessing, e.g.
-    "cod_ab:original_updated" or "cod_ab:extended_updated" (a tuple covers
-    fields that can each independently change the output, e.g. "extended"
-    also tracking admin_level_full). Pass the same version_dirs list the
-    builder itself iterates (e.g. `iter_included_version_dirs(work_dir,
-    run_version)`, or a concatenation of latest+historic for a resource that
-    spans both) so the fingerprint's scope always matches what actually gets
-    built — see metadata.py, whose builder combines both run_versions in one
-    pass. Includes the resolved ISO3 include/exclude filter state so a
-    filter-only change (no underlying data change) still triggers a rebuild.
-    """
-    keys = fingerprint_key if isinstance(fingerprint_key, tuple) else (fingerprint_key,)
-    services_fp = {
-        f"{iso3}/{version_dir.name}": [read_catalog(version_dir).get(k) for k in keys]
-        for iso3, version_dir in version_dirs
-    }
+def build_fingerprint(version_dirs: list[tuple[str, Path]]) -> dict:
+    """Build a content fingerprint from the version_dirs a builder will process."""
+    services_fp = {}
+    for iso3, version_dir in version_dirs:
+        fp = _deepest_layer_fingerprint(version_dir, iso3)
+        if fp is not None:
+            services_fp[f"{iso3}/{version_dir.name}"] = fp
     return {
         "services": services_fp,
         "iso3_include": sorted(iso3_include),

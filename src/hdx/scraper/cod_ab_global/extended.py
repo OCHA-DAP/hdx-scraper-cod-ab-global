@@ -1,104 +1,84 @@
-"""Mirror edge-extended COD-AB boundaries to source.coop.
+"""Edge-extend COD-AB boundaries from original/ into extended/.
 
-Reads from the local unified catalog (no ArcGIS calls), runs the edge extension
-pipeline for services whose original layers have changed, and injects extended
-assets into each layer's collection.json.
-
-The extended variant contains only polygon admin boundary layers (adm0-admN).
-Non-polygon types (lines, points, capitals, regions) are excluded.
+Layer naming mirrors original/ exactly; only the root segment differs.
 """
 
-import contextlib
-import json
 import logging
-import re
 import tempfile
 from pathlib import Path
 from shutil import copy
+from subprocess import CalledProcessError
 
 import duckdb
 import geoparquet_io as gpio
 from hdx.location.country import Country
-from topo_tools import extend
+from topo_tools import dissolve
+from topo_tools import edge_extend as extend
 
 from hdx.scraper.cod_ab_global.config import where_filter as _where_filter
 
-from .config import PORTOLAN_WORKERS
+from .config import ADMIN_SCHEMA_PATH, PORTOLAN_WORKERS
 from .original import (
-    _generate_variant_pmtiles,
-    inject_variant_assets,
+    _portolan,
+    admin_layer_pattern,
+    read_catalog,
+    read_json_state,
+    remove_stale_versions,
+    write_json_state,
 )
 
 logger = logging.getLogger(__name__)
 
-# Matches adm0, adm1, ..., adm9. Excludes lines, points, capitals, regions.
-_ADMIN_POLYGON_RE = re.compile(r"^adm\d$")
+
+def file_fingerprint(path: Path) -> list[int] | None:
+    """Return [size, mtime_ns] for a file, or None if it doesn't exist."""
+    if not path.exists():
+        return None
+    stat = path.stat()
+    return [stat.st_size, stat.st_mtime_ns]
 
 
-def _get_admin_updated_map(version_dir: Path) -> dict[str, str]:
-    """Return {layer_short: updated_iso} for adm* polygon layers in a version dir."""
-    result = {}
+def _admin_dirs(version_dir: Path, iso3: str) -> list[tuple[int, Path]]:
+    """Return [(level, layer_dir), ...] sorted by level for native admin dirs."""
     if not version_dir.exists():
-        return result
-    for layer_dir in sorted(version_dir.iterdir()):
-        if not layer_dir.is_dir() or layer_dir.name.startswith("."):
+        return []
+    pattern = admin_layer_pattern(iso3)
+    found = []
+    for d in version_dir.iterdir():
+        if not d.is_dir():
             continue
-        if not _ADMIN_POLYGON_RE.match(layer_dir.name):
-            continue
-        collection_path = layer_dir / "collection.json"
-        if collection_path.exists():
-            updated = json.loads(collection_path.read_text()).get("updated")
-            if updated:
-                result[layer_dir.name] = updated
-    return result
+        m = pattern.match(d.name)
+        if m:
+            found.append((int(m.group(1)), d))
+    return sorted(found)
 
 
-def _load_stored_original_updated(version_dir: Path) -> dict[str, str]:
-    """Return stored original updated map from the version catalog.json."""
-    catalog_path = version_dir / "catalog.json"
-    if not catalog_path.exists():
-        return {}
-    raw = json.loads(catalog_path.read_text()).get("cod_ab:original_updated")
-    if not raw:
-        return {}
-    with contextlib.suppress(json.JSONDecodeError, TypeError):
-        return json.loads(raw)
-    return {}
+def _get_admin_level_full(original_version_dir: Path, iso3: str) -> int | None:
+    """Return admin_level_full from original/'s catalog.json, verified on disk.
 
-
-def _get_admin_level_full(version_dir: Path) -> int | None:
-    """Return admin_level_full from catalog.json, verified against actual parquets.
-
-    Falls back to the highest adm{N} dir with an existing original.parquet.
+    Falls back to the highest native admin dir with an existing parquet.
     """
-    catalog_path = version_dir / "catalog.json"
-    if catalog_path.exists():
-        with contextlib.suppress(TypeError, ValueError):
-            val = json.loads(catalog_path.read_text()).get("cod_ab:admin_level_full")
-            if val is not None:
-                level = int(val)
-                seed_dir = version_dir / f"adm{level}"
-                if (seed_dir / "original.parquet").exists():
-                    return level
-    levels = [
-        int(d.name[3:])
-        for d in version_dir.iterdir()
-        if d.is_dir()
-        and _ADMIN_POLYGON_RE.match(d.name)
-        and (d / "original.parquet").exists()
-    ]
+    catalog = read_catalog(original_version_dir)
+    val = catalog.get("cod_ab:admin_level_full")
+    if val is not None:
+        try:
+            level = int(val)
+        except (TypeError, ValueError):
+            level = None
+        if level is not None:
+            layer_name = f"{iso3}_admin{level}"
+            seed = original_version_dir / layer_name / f"{layer_name}.parquet"
+            if seed.exists():
+                return level
+    dirs = _admin_dirs(original_version_dir, iso3)
+    levels = [level for level, d in dirs if (d / f"{d.name}.parquet").exists()]
     return max(levels) if levels else None
 
 
 def _admin_group_cols(all_cols: list[str], level: int) -> list[str]:
     """Return columns to SELECT/GROUP BY when dissolving to admin level.
 
-    Matches the canonical schema from standardize.py: adm*_name*, adm*_pcode,
-    lang*, version, valid_on, valid_to. iso2/iso3 are injected as literals in
-    _dissolve_all_levels since the portolan originals don't carry those columns.
-
-    Returns empty list if no pcode column exists for this level — caller skips
-    the level rather than dissolving by date fields only (wrong semantics).
+    Empty list means no pcode column exists for this level.
     """
     keep = {
         f"adm{L}{s}"
@@ -123,52 +103,70 @@ def _dissolve_all_levels(
     seed_path: Path,
     iso3: str,
     admin_level_full: int,
-    version_dir: Path,
+    extended_version_dir: Path,
 ) -> None:
-    """Write edge-extended parquet + dissolved lower levels into the version dir.
-
-    Writes {version_dir}/adm{N}/extended.parquet for N from 0 to admin_level_full.
-    Drops GDAL/ArcGIS artifacts and injects iso2/iso3 literals.
-    """
+    """Write edge-extended + dissolved lower-level parquets into extended/."""
     iso3_upper = iso3.upper()
     iso2 = Country.get_iso2_from_iso3(iso3_upper) or ""
     iso_suffix = f"'{iso2}' AS iso2, '{iso3_upper}' AS iso3"
 
-    con = duckdb.connect()
-    try:
-        con.load_extension("spatial")
-        con.execute(f"CREATE TABLE seed AS SELECT * FROM read_parquet('{seed_path}')")
-        all_cols = [row[0] for row in con.execute("DESCRIBE seed").fetchall()]
+    with tempfile.TemporaryDirectory(prefix="portolan-dissolve-") as tmp:
+        tmp_path = Path(tmp)
+        current_path = tmp_path / f"{iso3}_admin{admin_level_full}.parquet"
 
-        with tempfile.TemporaryDirectory(prefix="portolan-dissolve-") as tmp:
-            tmp_path = Path(tmp)
-            for level in range(admin_level_full, -1, -1):
-                group_cols = _admin_group_cols(all_cols, level)
-                if not group_cols:
+        con = duckdb.connect()
+        try:
+            con.load_extension("spatial")
+            con.execute(
+                f"CREATE TABLE seed AS SELECT * FROM read_parquet('{seed_path}')"
+            )
+            all_cols = [row[0] for row in con.execute("DESCRIBE seed").fetchall()]
+            keep_cols = _admin_group_cols(all_cols, admin_level_full)
+            if not keep_cols:
+                logger.warning(
+                    "No pcode column found for %s up to level %d, nothing written",
+                    iso3_upper,
+                    admin_level_full,
+                )
+                return
+            cols_str = ", ".join(keep_cols)
+            con.execute(
+                f"COPY (SELECT {cols_str}, {iso_suffix}, geometry FROM seed)"
+                f" TO '{current_path}' (FORMAT PARQUET, COMPRESSION ZSTD)"
+            )
+            layer_name = f"{iso3}_admin{admin_level_full}"
+            out_dir = extended_version_dir / layer_name
+            out_dir.mkdir(parents=True, exist_ok=True)
+            _write_gpq2(current_path, out_dir / f"{layer_name}.parquet")
+
+            for level in range(admin_level_full - 1, -1, -1):
+                pcode_col = f"adm{level}_pcode"
+                if pcode_col not in keep_cols:
                     continue
-                layer_short = f"adm{level}"
-                out_dir = version_dir / layer_short
+                layer_name = f"{iso3}_admin{level}"
+                out_dir = extended_version_dir / layer_name
                 out_dir.mkdir(parents=True, exist_ok=True)
-                cols_str = ", ".join(group_cols)
-                tmp_out = tmp_path / f"{layer_short}.parquet"
-                if level == admin_level_full:
-                    con.execute(
-                        f"COPY (SELECT {cols_str}, {iso_suffix}, geometry FROM seed)"
-                        f" TO '{tmp_out}' (FORMAT PARQUET, COMPRESSION ZSTD)"
+                dissolved_path = tmp_path / f"{layer_name}_raw.parquet"
+                issues_path = tmp_path / f"{layer_name}_issues.parquet"
+                dissolve(
+                    current_path,
+                    dissolved_path,
+                    issues_path,
+                    group_by=[pcode_col],
+                    target_schema_path=ADMIN_SCHEMA_PATH,
+                    overwrite=True,
+                )
+                if issues_path.exists():
+                    logger.warning(
+                        "Dissolve to level %d for %s reported topology issues: %s",
+                        level,
+                        iso3_upper,
+                        issues_path,
                     )
-                else:
-                    con.execute(
-                        f"COPY ("
-                        f"  SELECT {cols_str}, {iso_suffix},"
-                        f"  ST_Union_Agg(geometry) AS geometry"
-                        f"  FROM seed GROUP BY {cols_str}"
-                        f") TO '{tmp_out}'"
-                        " (FORMAT PARQUET, COMPRESSION ZSTD)"
-                    )
-                dest = out_dir / "extended.parquet"
-                _write_gpq2(tmp_out, dest)
-    finally:
-        con.close()
+                _write_gpq2(dissolved_path, out_dir / f"{layer_name}.parquet")
+                current_path = dissolved_path
+        finally:
+            con.close()
 
 
 def _apply_where_filter(path: Path, iso3_upper: str) -> None:
@@ -203,20 +201,16 @@ def _apply_where_filter(path: Path, iso3_upper: str) -> None:
         con.close()
 
 
-def _process_service(iso3: str, version: str, version_dir: Path) -> bool:
-    """Run edge extension for one service in an isolated temp dir.
-
-    Returns True on success. Writes extended.parquet into each adm{N} layer dir.
-    Cleans up any stale extended parquets before writing new ones so shrinking
-    admin_level_full doesn't leave orphan files.
-    """
-    admin_level_full = _get_admin_level_full(version_dir)
-    if admin_level_full is None:
-        logger.warning("Cannot determine admin_level_full for %s/%s", iso3, version)
-        return False
-
-    layer_short = f"adm{admin_level_full}"
-    seed_src = version_dir / layer_short / "original.parquet"
+def _process_service(
+    iso3: str,
+    version: str,
+    original_version_dir: Path,
+    extended_version_dir: Path,
+    admin_level_full: int,
+) -> bool:
+    """Run edge extension for one service in an isolated temp dir."""
+    layer_name = f"{iso3}_admin{admin_level_full}"
+    seed_src = original_version_dir / layer_name / f"{layer_name}.parquet"
     if not seed_src.exists():
         logger.warning("Seed parquet not found: %s", seed_src)
         return False
@@ -234,15 +228,15 @@ def _process_service(iso3: str, version: str, version_dir: Path) -> bool:
             logger.exception("Edge extension failed for %s/%s", iso3, version)
             return False
 
-        # Remove stale extended parquets/pmtiles before writing new ones
         for level in range(admin_level_full + 2):
-            stale_dir = version_dir / f"adm{level}"
+            stale_dir = extended_version_dir / f"{iso3}_admin{level}"
             if stale_dir.exists():
-                for stale in ("extended.parquet", "extended.pmtiles"):
-                    (stale_dir / stale).unlink(missing_ok=True)
+                (stale_dir / f"{iso3}_admin{level}.parquet").unlink(missing_ok=True)
 
         try:
-            _dissolve_all_levels(post_path, iso3, admin_level_full, version_dir)
+            _dissolve_all_levels(
+                post_path, iso3, admin_level_full, extended_version_dir
+            )
         except Exception:
             logger.exception("Postprocessing failed for %s/%s", iso3, version)
             return False
@@ -251,40 +245,11 @@ def _process_service(iso3: str, version: str, version_dir: Path) -> bool:
     return True
 
 
-def _enrich_extended_catalog(version_dir: Path, original_map: dict[str, str]) -> None:
-    """Write cod_ab:original_updated marker into the version catalog.json."""
-    catalog_path = version_dir / "catalog.json"
-    if catalog_path.exists() and original_map:
-        data = json.loads(catalog_path.read_text())
-        data["cod_ab:original_updated"] = json.dumps(original_map)
-        catalog_path.write_text(json.dumps(data, indent=2))
-
-
-def _inject_all_extended_assets(version_dir: Path, workers: str) -> None:
-    """Inject extended assets into all adm{N} collection.json files.
-
-    Called for every service on every run to ensure portolan add (which
-    regenerates collection.json with only original assets) doesn't leave
-    extended assets behind.
-    """
-    for layer_dir in sorted(version_dir.iterdir()):
-        if not layer_dir.is_dir() or not _ADMIN_POLYGON_RE.match(layer_dir.name):
-            continue
-        parquet = layer_dir / "extended.parquet"
-        if not parquet.exists():
-            continue
-        if not (layer_dir / "extended.pmtiles").exists():
-            _generate_variant_pmtiles(parquet, layer_dir, workers)
-        inject_variant_assets(layer_dir / "collection.json", "extended")
-
-
-def _enumerate_services(work_dir: Path) -> list[tuple[str, str]]:
-    """Return [(iso3, version), ...] for all service dirs in work_dir."""
+def enumerate_services(root_dir: Path) -> list[tuple[str, str]]:
+    """Return [(iso3, version), ...] for all service dirs in root_dir."""
     services = []
-    for country_dir in sorted(work_dir.iterdir()):
+    for country_dir in sorted(root_dir.iterdir()):
         if not country_dir.is_dir() or country_dir.name.startswith("."):
-            continue
-        if country_dir.name == "wld":
             continue
         for version_dir in sorted(country_dir.iterdir()):
             if not version_dir.is_dir() or version_dir.name.startswith("."):
@@ -295,36 +260,68 @@ def _enumerate_services(work_dir: Path) -> list[tuple[str, str]]:
     return services
 
 
-def run(work_dir: Path) -> None:
-    """Mirror edge-extended COD-AB boundaries into the unified catalog."""
-    services = _enumerate_services(work_dir)
+def run(original_dir: Path, extended_dir: Path) -> None:
+    """Edge-extend admin-polygon layers from original/ into extended/."""
+    services = enumerate_services(original_dir)
     if not services:
-        logger.warning("No services found in %s — run original first", work_dir)
+        logger.warning("No services found in %s, run original first", original_dir)
         return
     logger.info("Found %d services to process for extended", len(services))
 
+    remove_stale_versions(set(services), extended_dir)
+
+    fingerprints_path = extended_dir / ".state" / "fingerprints.json"
+    stored_fingerprints = read_json_state(fingerprints_path)
+    new_fingerprints: dict[str, list[int]] = {}
     workers = str(PORTOLAN_WORKERS)
 
     for iso3, version in services:
-        version_dir = work_dir / iso3 / version
-        original_map = _get_admin_updated_map(version_dir)
-        if not original_map:
+        key = f"{iso3}/{version}"
+        original_version_dir = original_dir / iso3 / version
+        extended_version_dir = extended_dir / iso3 / version
+
+        admin_level_full = _get_admin_level_full(original_version_dir, iso3)
+        if admin_level_full is None:
+            logger.warning("Cannot determine admin_level_full for %s/%s", iso3, version)
+            continue
+        layer_name = f"{iso3}_admin{admin_level_full}"
+        seed_src = original_version_dir / layer_name / f"{layer_name}.parquet"
+        fingerprint = file_fingerprint(seed_src)
+        if fingerprint is None:
+            continue
+        new_fingerprints[key] = fingerprint
+
+        if (
+            fingerprint == stored_fingerprints.get(key)
+            and extended_version_dir.exists()
+        ):
+            logger.debug("Skipping unchanged extended for %s/%s", iso3, version)
             continue
 
-        stored = _load_stored_original_updated(version_dir)
-        if original_map != stored:
-            logger.info("Processing extended for %s/%s", iso3, version)
-            # Synthesise the service name for _service_to_path roundtrip (not used here)
-            if _process_service(iso3, version, version_dir):
-                _enrich_extended_catalog(version_dir, original_map)
-            else:
-                logger.warning(
-                    "Extended processing failed for %s/%s — will retry next run",
-                    iso3,
-                    version,
-                )
-        else:
-            logger.debug("Skipping unchanged %s/%s", iso3, version)
+        logger.info("Processing extended for %s/%s", iso3, version)
+        if not _process_service(
+            iso3, version, original_version_dir, extended_version_dir, admin_level_full
+        ):
+            logger.warning(
+                "Extended processing failed for %s/%s, will retry next run",
+                iso3,
+                version,
+            )
+            continue
 
-        # portolan add regenerates collection.json — always re-inject extended assets
-        _inject_all_extended_assets(version_dir, workers)
+        try:
+            _portolan(
+                [
+                    "add",
+                    f"{iso3}/{version}/",
+                    "--workers",
+                    workers,
+                    "--pmtiles",
+                    "--force",
+                ],
+                cwd=extended_dir,
+            )
+        except CalledProcessError:
+            logger.warning("portolan add failed for %s/%s (continuing)", iso3, version)
+
+    write_json_state(fingerprints_path, new_fingerprints)

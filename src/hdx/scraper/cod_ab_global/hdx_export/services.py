@@ -22,13 +22,11 @@ _ISO3_LEN = 3
 _VERSION_RE = re.compile(r"^v(\d+)$")
 
 
-def _iter_version_dirs(work_dir: Path) -> list[tuple[str, int, Path]]:
+def _iter_version_dirs(root_dir: Path) -> list[tuple[str, int, Path]]:
     """Return [(iso3, version_num, version_dir), ...] for every versioned service."""
     result = []
-    for country_dir in sorted(work_dir.iterdir()):
+    for country_dir in sorted(root_dir.iterdir()):
         if not country_dir.is_dir() or country_dir.name.startswith("."):
-            continue
-        if country_dir.name == "wld":
             continue
         iso3 = country_dir.name
         for version_dir in sorted(country_dir.iterdir()):
@@ -41,7 +39,7 @@ def _iter_version_dirs(work_dir: Path) -> list[tuple[str, int, Path]]:
 
 
 def _partition_by_version(
-    work_dir: Path,
+    root_dir: Path,
 ) -> tuple[dict[str, Path], dict[str, list[Path]]]:
     """Return (latest, historic) service dirs per iso3, before ISO3 filtering.
 
@@ -49,7 +47,7 @@ def _partition_by_version(
     historic: {iso3: [version_dir, ...]} for all lower vNN, ascending order.
     """
     by_iso3: dict[str, list[tuple[int, Path]]] = {}
-    for iso3, num, version_dir in _iter_version_dirs(work_dir):
+    for iso3, num, version_dir in _iter_version_dirs(root_dir):
         by_iso3.setdefault(iso3, []).append((num, version_dir))
 
     latest: dict[str, Path] = {}
@@ -112,13 +110,13 @@ def _apply_iso3_filter(
     return filtered_latest, filtered_historic
 
 
-def resolve_services(work_dir: Path, run_version: str) -> dict[str, list[Path]]:
+def resolve_services(root_dir: Path, run_version: str) -> dict[str, list[Path]]:
     """Return {iso3: [version_dir, ...]} in scope for one run_version.
 
     run_version: "latest" (one version_dir per iso3) or "historic" (zero or
-    more version_dirs per iso3 — every version below the highest).
+    more version_dirs per iso3, every version below the highest).
     """
-    latest, historic = _partition_by_version(work_dir)
+    latest, historic = _partition_by_version(root_dir)
     filtered_latest, filtered_historic = _apply_iso3_filter(latest, historic)
     if run_version == "latest":
         return {iso3: [d] for iso3, d in filtered_latest.items()}
@@ -126,10 +124,10 @@ def resolve_services(work_dir: Path, run_version: str) -> dict[str, list[Path]]:
 
 
 def iter_included_version_dirs(
-    work_dir: Path, run_version: str
+    root_dir: Path, run_version: str
 ) -> list[tuple[str, Path]]:
     """Return sorted [(iso3, version_dir), ...] in scope for one run_version."""
-    grouped = resolve_services(work_dir, run_version)
+    grouped = resolve_services(root_dir, run_version)
     return sorted(
         (iso3, version_dir) for iso3, dirs in grouped.items() for version_dir in dirs
     )
