@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pandas import DataFrame, to_datetime
 
-from hdx.scraper.cod_ab_global.original import read_catalog
+from hdx.scraper.cod_ab_global.catalog import read_catalog
 from hdx.scraper.cod_ab_global.utils import save_metadata
 
 from .services import iter_included_version_dirs

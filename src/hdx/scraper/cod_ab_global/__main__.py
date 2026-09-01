@@ -12,6 +12,13 @@ from tempfile import mkdtemp
 
 os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
 
+from .catalog import (
+    _ensure_root_catalog,
+    _portolan,
+    _push_catalog_files,
+    push_top_catalog,
+    write_top_catalog,
+)
 from .config import (
     HDX_EXPORT_OUTPUT_DIR,
     HDX_EXPORT_PUSH,
@@ -23,13 +30,6 @@ from .extended import run as extended_run
 from .global_ import run as global_run
 from .hdx_export import run as hdx_export_run
 from .matched import run as matched_run
-from .original import (
-    _ensure_root_catalog,
-    _portolan,
-    _push_catalog_files,
-    push_top_catalog,
-    write_top_catalog,
-)
 from .original import run as original_run
 
 logging.basicConfig(
@@ -39,6 +39,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+TREE_NAMES = ("original", "extended", "matched", "global")
+
 
 def main() -> None:
     """Run the full pipeline: mirror, extend, match, stitch, push, HDX export."""
@@ -47,23 +49,24 @@ def main() -> None:
         if PORTOLAN_WORK_DIR
         else Path(mkdtemp(prefix="portolan-cod-ab-"))
     )
-    original_dir = work_dir / "original"
-    extended_dir = work_dir / "extended"
-    matched_dir = work_dir / "matched"
-    global_dir = work_dir / "global"
+    trees = {name: work_dir / name for name in TREE_NAMES}
+    original_dir = trees["original"]
+    extended_dir = trees["extended"]
+    matched_dir = trees["matched"]
+    global_dir = trees["global"]
 
-    for catalog_dir in (original_dir, extended_dir, matched_dir, global_dir):
+    for catalog_dir in trees.values():
         _ensure_root_catalog(catalog_dir)
 
     original_run(original_dir)
     extended_run(original_dir, extended_dir)
     matched_run(extended_dir, matched_dir, work_dir)
     global_run(matched_dir, global_dir)
-    write_top_catalog(work_dir, ["original", "extended", "matched", "global"])
+    write_top_catalog(work_dir, list(TREE_NAMES))
 
     # Consolidated push after all stages complete, so users never see partial state.
     workers = str(PORTOLAN_WORKERS)
-    for catalog_dir in (original_dir, extended_dir, matched_dir, global_dir):
+    for catalog_dir in trees.values():
         remote = f"{SOURCECOOP_REMOTE.rstrip('/')}/{catalog_dir.name}/"
         _portolan(["push", remote, "--workers", workers, "--verbose"], cwd=catalog_dir)
         _push_catalog_files(catalog_dir, remote)

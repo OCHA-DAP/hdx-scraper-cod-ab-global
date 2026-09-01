@@ -5,12 +5,13 @@ State is stored sibling to `.bnda`, outside any of the four catalog trees.
 
 from pathlib import Path
 
-from hdx.scraper.cod_ab_global.config import iso3_exclude, iso3_include
-from hdx.scraper.cod_ab_global.original import (
-    admin_layer_pattern,
+from hdx.scraper.cod_ab_global.catalog import (
+    admin_layers,
+    file_fingerprint,
     read_json_state,
     write_json_state,
 )
+from hdx.scraper.cod_ab_global.config import iso3_exclude, iso3_include
 
 _STATE_FILE = "state.json"
 _PUSH_STATE_FILE = "push_state.json"
@@ -18,20 +19,12 @@ _PUSH_STATE_FILE = "push_state.json"
 
 def _deepest_layer_fingerprint(version_dir: Path, iso3: str) -> list[int] | None:
     """Return [level, size, mtime_ns] for the deepest existing admin parquet."""
-    pattern = admin_layer_pattern(iso3)
-    levels = [
-        int(m.group(1))
-        for d in version_dir.iterdir()
-        if d.is_dir()
-        and (m := pattern.match(d.name))
-        and (d / f"{d.name}.parquet").exists()
-    ]
-    if not levels:
+    layers = admin_layers(version_dir, iso3)
+    if not layers:
         return None
-    level = max(levels)
-    layer_name = f"{iso3}_admin{level}"
-    stat = (version_dir / layer_name / f"{layer_name}.parquet").stat()
-    return [level, stat.st_size, stat.st_mtime_ns]
+    level, layer_dir = layers[-1]
+    fp = file_fingerprint(layer_dir / f"{layer_dir.name}.parquet")
+    return [level, *fp] if fp else None
 
 
 def _state_path(work_dir: Path) -> Path:

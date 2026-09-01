@@ -13,10 +13,16 @@ import duckdb
 from topo_tools import dissolve
 from topo_tools import edge_stitch as topo_stitch
 
+from .catalog import (
+    _portolan,
+    admin_layers,
+    file_fingerprint,
+    iter_version_dirs,
+    read_json_state,
+    write_json_state,
+)
 from .config import ADMIN_SCHEMA_PATH, PORTOLAN_WORKERS
-from .extended import _write_gpq2, file_fingerprint
-from .matched import _admin_layers
-from .original import _portolan, read_json_state, write_json_state
+from .extended import _write_gpq2
 
 logger = logging.getLogger(__name__)
 
@@ -26,24 +32,17 @@ _MAX_ADMIN = 4
 def _latest_versioned_per_iso3(matched_dir: Path) -> dict[str, Path]:
     """Return {iso3: version_dir} for the highest-versioned service per iso3."""
     best: dict[str, tuple[int, Path]] = {}
-    for country_dir in matched_dir.iterdir():
-        if not country_dir.is_dir() or country_dir.name.startswith("."):
-            continue
-        iso3 = country_dir.name
-        for version_dir in country_dir.iterdir():
-            if not version_dir.is_dir() or version_dir.name.startswith("."):
-                continue
-            v = version_dir.name
-            if v.startswith("v") and v[1:].isdigit():
-                n = int(v[1:])
-                if iso3 not in best or n > best[iso3][0]:
-                    best[iso3] = (n, version_dir)
+    for iso3, version, version_dir in iter_version_dirs(matched_dir):
+        if version.startswith("v") and version[1:].isdigit():
+            n = int(version[1:])
+            if iso3 not in best or n > best[iso3][0]:
+                best[iso3] = (n, version_dir)
     return {iso3: info[1] for iso3, info in best.items()}
 
 
 def _get_service_meta(version_dir: Path, iso3: str) -> dict | None:
     """Return the deepest matched admin layer's metadata for one service."""
-    layers = [(level, d) for level, d in _admin_layers(version_dir, iso3) if level > 0]
+    layers = [(level, d) for level, d in admin_layers(version_dir, iso3) if level > 0]
     if not layers:
         logger.warning(
             "No usable matched parquet for %s/%s, skipping", iso3, version_dir.name

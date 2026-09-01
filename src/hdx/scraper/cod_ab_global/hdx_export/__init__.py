@@ -44,7 +44,7 @@ def _build_boundaries(
             fingerprint = state.build_fingerprint(version_dirs)
             if state.is_stale(work_dir, stage, run_version, fingerprint, output_path):
                 logger.info("Rebuilding %s/%s", stage, run_version)
-                build_boundaries_gdb(root_dir, run_version, stage, output_dir)
+                build_boundaries_gdb(version_dirs, run_version, stage, output_dir)
                 results[stage, run_version] = (True, fingerprint)
             else:
                 logger.info("Skipping unchanged %s/%s", stage, run_version)

@@ -6,15 +6,11 @@ ArcGIS lastEditDate fingerprint is unchanged from the last successful run.
 
 import json
 import logging
-import re
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import rmtree
 from subprocess import CalledProcessError
-from subprocess import run as _run
-from textwrap import dedent
 
 import geoparquet_io.core.arcgis as _gpio_arcgis
 import portolan_cli.extract.arcgis.discovery as _arcgis_discovery
@@ -26,6 +22,13 @@ from portolan_cli.extract.arcgis.orchestrator import (
     extract_arcgis_catalog,
 )
 
+from .catalog import (
+    _portolan,
+    portolan_add,
+    read_json_state,
+    remove_stale_versions,
+    write_json_state,
+)
 from .config import (
     ARCGIS_SERVICES_URL,
     PORTOLAN_WORKERS,
@@ -34,8 +37,6 @@ from .config import (
 from .utils import fetch_json, fetch_metadata_table, generate_token, list_services
 
 logger = logging.getLogger(__name__)
-
-_CATALOG_TITLE = "COD-AB Administrative Boundaries"
 
 # discover_layers() has no token param, unlike discover_services() (portolan-cli#855).
 _orig_fetch_json = _arcgis_discovery._fetch_json  # noqa: SLF001
@@ -97,52 +98,18 @@ _gpio_arcgis._build_schema_from_layer_info = (  # noqa: SLF001
     _patched_build_schema_from_layer_info
 )
 
-_PORTOLAN = str(Path(sys.executable).parent / "portolan")
-
-
-def _portolan(args: list[str], cwd: Path) -> None:
-    _run([_PORTOLAN, *args], cwd=cwd, check=True)
-
 
 def _service_to_path(service_name: str) -> tuple[str, str]:
     """Return (iso3, version) for a COD-AB service name.
 
-    cod_ab_eth_v04 → ("eth", "v04")
-    cod_ab_eth     → ("eth", "latest")
+    cod_ab_eth_v04 -> ("eth", "v04")
+    cod_ab_eth     -> ("eth", "latest")
     """
-    # cod_ab_<iso3>[_<version>] — 3 parts unversioned, 4 parts versioned
+    # cod_ab_<iso3>[_<version>]: 3 parts unversioned, 4 parts versioned
     parts = service_name.lower().split("_")
     iso3 = parts[2]
     version = parts[3] if len(parts) > 3 else "latest"  # noqa: PLR2004
     return iso3, version
-
-
-def admin_layer_pattern(iso3: str) -> re.Pattern[str]:
-    """Return the regex matching native admin-polygon layer dirs for one ISO3."""
-    return re.compile(rf"^{re.escape(iso3.lower())}_admin(\d+)$")
-
-
-def _write_catalog_metadata(catalog_dir: Path) -> None:
-    portolan_dir = catalog_dir / ".portolan"
-    portolan_dir.mkdir(exist_ok=True)
-    (portolan_dir / "metadata.yaml").write_text(
-        dedent(f"""\
-            license: CC-BY-3.0-IGO
-            keywords:
-              - administrative boundaries
-              - COD-AB
-              - humanitarian
-              - OCHA
-              - HDX
-              - GeoParquet
-              - cloud-native
-            contact:
-              name: HDX Data Systems Team
-              email: hdx@un.org
-            attribution: UN OCHA Information Systems Section (ISS)
-            source_url: {ARCGIS_SERVICES_URL}
-        """)
-    )
 
 
 # All meaningful fields from COD_Global_Metadata (mirrors refactor.py's column list).
@@ -251,33 +218,6 @@ def _last_edit_to_iso(ms: int) -> str:
     return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat(timespec="milliseconds")
 
 
-def read_catalog(version_dir: Path) -> dict:
-    """Return parsed catalog.json content, or {} if missing/unreadable."""
-    catalog_path = version_dir / "catalog.json"
-    if not catalog_path.exists():
-        return {}
-    try:
-        return json.loads(catalog_path.read_text())
-    except json.JSONDecodeError:
-        return {}
-
-
-def read_json_state(path: Path) -> dict:
-    """Return parsed JSON content at `path`, or {} if missing/unreadable."""
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
-def write_json_state(path: Path, data: dict) -> None:
-    """Write `data` as indented, sort-keyed JSON to `path`."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True))
-
-
 def _extract_service(
     service_name: str,
     token: str,
@@ -334,123 +274,6 @@ def _extract_service(
     return layer_updated, True
 
 
-def _push_catalog_files(work_dir: Path, remote: str) -> None:
-    """Upload intermediate catalog.json and README.md files to S3.
-
-    portolan push handles leaf collections only. This syncs catalog.json and
-    README.md at the root, country, and service levels so STAC clients can
-    navigate the full hierarchy.
-    """
-    _run(
-        [
-            "aws",
-            "s3",
-            "sync",
-            str(work_dir),
-            remote.rstrip("/"),
-            "--exclude",
-            "*",
-            "--include",
-            "catalog.json",
-            "--include",
-            "*/catalog.json",
-            "--include",
-            "*/*/catalog.json",
-            "--include",
-            "*/README.md",
-            "--include",
-            "*/*/README.md",
-            "--exclude",
-            "*/*/*/*",
-        ],
-        check=True,
-    )
-
-
-def push_top_catalog(work_dir: Path, remote: str) -> None:
-    """Upload work_dir/catalog.json to the root of remote."""
-    _run(
-        [
-            "aws",
-            "s3",
-            "cp",
-            str(work_dir / "catalog.json"),
-            f"{remote.rstrip('/')}/catalog.json",
-        ],
-        check=True,
-    )
-
-
-def _ensure_root_catalog(work_dir: Path) -> None:
-    """Initialise the portolan catalog rooted at work_dir if not present."""
-    work_dir.mkdir(parents=True, exist_ok=True)
-    if (work_dir / ".portolan" / "config.yaml").exists() and (
-        work_dir / "catalog.json"
-    ).exists():
-        _write_catalog_metadata(work_dir)
-        return
-    (work_dir / ".portolan" / "config.yaml").unlink(missing_ok=True)
-    _portolan(
-        ["init", "--title", _CATALOG_TITLE, "--license", "CC-BY-3.0-IGO", "--auto"],
-        cwd=work_dir,
-    )
-    _write_catalog_metadata(work_dir)
-
-
-_TREE_TITLES = {
-    "original": "Original",
-    "extended": "Extended",
-    "matched": "Matched",
-    "global": "Global",
-}
-
-
-def write_top_catalog(work_dir: Path, tree_names: list[str]) -> None:
-    """Write work_dir/catalog.json, linking each sibling tree's own catalog.json."""
-    data = {
-        "type": "Catalog",
-        "id": "cod-ab",
-        "stac_version": "1.1.0",
-        "description": _CATALOG_TITLE,
-        "links": [
-            {
-                "rel": "root",
-                "href": "./catalog.json",
-                "type": "application/json",
-                "title": _CATALOG_TITLE,
-            },
-            *(
-                {
-                    "rel": "child",
-                    "href": f"./{name}/catalog.json",
-                    "type": "application/json",
-                    "title": _TREE_TITLES.get(name, name.title()),
-                }
-                for name in tree_names
-            ),
-        ],
-    }
-    (work_dir / "catalog.json").write_text(json.dumps(data, indent=2))
-
-
-def remove_stale_versions(valid_pairs: set[tuple[str, str]], work_dir: Path) -> None:
-    """Remove {iso3}/{version}/ directories not in valid_pairs (portolan rm)."""
-    for country_dir in sorted(work_dir.iterdir()):
-        if not country_dir.is_dir() or country_dir.name.startswith("."):
-            continue
-        iso3 = country_dir.name
-        for version_dir in sorted(country_dir.iterdir()):
-            if not version_dir.is_dir() or version_dir.name.startswith("."):
-                continue
-            version = version_dir.name
-            if (iso3, version) not in valid_pairs:
-                logger.info("Removing stale service %s/%s", iso3, version)
-                try:
-                    _portolan(["rm", "--force", f"{iso3}/{version}/"], cwd=work_dir)
-                except CalledProcessError:
-                    logger.warning("portolan rm failed for %s/%s", iso3, version)
-
-
 def _remove_stale_services(services: list[str], work_dir: Path) -> None:
     """Remove version directories no longer present in ArcGIS."""
     remove_stale_versions({_service_to_path(s) for s in services}, work_dir)
@@ -504,21 +327,10 @@ def run(original_dir: Path) -> None:
             continue
 
         meta = metadata.get(service_name.lower())
-        args = [
-            "add",
-            f"{iso3}/{version}/",
-            "--workers",
-            workers,
-            "--pmtiles",
-            "--force",
-        ]
         date_valid_on = (meta.get("date_valid_on") or "").strip() if meta else ""
-        if date_valid_on:
-            args += ["--datetime", date_valid_on]
-        try:
-            _portolan(args, cwd=original_dir)
-        except CalledProcessError:
-            logger.warning("portolan add failed for %s (continuing)", service_name)
+        portolan_add(
+            original_dir, f"{iso3}/{version}/", workers, datetime_=date_valid_on or None
+        )
         if meta:
             override = admin_level_full_overrides.get(iso3.upper())
             if override is not None:

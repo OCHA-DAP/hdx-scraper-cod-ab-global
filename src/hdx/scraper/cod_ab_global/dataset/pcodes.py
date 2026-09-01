@@ -9,7 +9,7 @@ from pandas import read_parquet
 
 from hdx.scraper.cod_ab_global.config import UPDATED_BY_SCRIPT
 
-cwd = Path(__file__).parent
+from . import base_dataset
 
 dataset_info = {
     "name": "global-pcodes",
@@ -86,10 +86,7 @@ def _initialize_dataset(output_dir: Path) -> Dataset:
     )
     start_date = df["Valid from date"].min().isoformat()
     end_date = datetime.now(tz=UTC).date().isoformat()
-    dataset = Dataset(dataset_info)
-    dataset.update_from_yaml(path=str(cwd / "../config/hdx_dataset_static.yaml"))
-    dataset.add_other_location("world")
-    dataset.add_tags(["administrative boundaries-divisions"])
+    dataset = base_dataset(dataset_info)
     dataset.set_time_period(start_date, end_date)
     return dataset
 

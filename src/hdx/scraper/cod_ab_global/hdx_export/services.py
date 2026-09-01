@@ -16,6 +16,9 @@ unconditional mirror of every ArcGIS service to source.coop.
 import re
 from pathlib import Path
 
+from hdx.scraper.cod_ab_global.catalog import (
+    iter_version_dirs as _iter_all_version_dirs,
+)
 from hdx.scraper.cod_ab_global.config import iso3_exclude, iso3_include
 
 _ISO3_LEN = 3
@@ -25,16 +28,10 @@ _VERSION_RE = re.compile(r"^v(\d+)$")
 def _iter_version_dirs(root_dir: Path) -> list[tuple[str, int, Path]]:
     """Return [(iso3, version_num, version_dir), ...] for every versioned service."""
     result = []
-    for country_dir in sorted(root_dir.iterdir()):
-        if not country_dir.is_dir() or country_dir.name.startswith("."):
-            continue
-        iso3 = country_dir.name
-        for version_dir in sorted(country_dir.iterdir()):
-            if not version_dir.is_dir() or version_dir.name.startswith("."):
-                continue
-            match = _VERSION_RE.match(version_dir.name)
-            if match:
-                result.append((iso3, int(match.group(1)), version_dir))
+    for iso3, version, version_dir in _iter_all_version_dirs(root_dir):
+        match = _VERSION_RE.match(version)
+        if match:
+            result.append((iso3, int(match.group(1)), version_dir))
     return result
 
 

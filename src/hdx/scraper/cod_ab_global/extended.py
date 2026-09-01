@@ -7,7 +7,6 @@ import logging
 import tempfile
 from pathlib import Path
 from shutil import copy
-from subprocess import CalledProcessError
 
 import duckdb
 import geoparquet_io as gpio
@@ -17,40 +16,20 @@ from topo_tools import edge_extend as extend
 
 from hdx.scraper.cod_ab_global.config import where_filter as _where_filter
 
-from .config import ADMIN_SCHEMA_PATH, PORTOLAN_WORKERS
-from .original import (
-    _portolan,
-    admin_layer_pattern,
+from .catalog import (
+    ADM_SUFFIXES,
+    admin_layers,
+    file_fingerprint,
+    iter_version_dirs,
+    portolan_add,
     read_catalog,
     read_json_state,
     remove_stale_versions,
     write_json_state,
 )
+from .config import ADMIN_SCHEMA_PATH, PORTOLAN_WORKERS
 
 logger = logging.getLogger(__name__)
-
-
-def file_fingerprint(path: Path) -> list[int] | None:
-    """Return [size, mtime_ns] for a file, or None if it doesn't exist."""
-    if not path.exists():
-        return None
-    stat = path.stat()
-    return [stat.st_size, stat.st_mtime_ns]
-
-
-def _admin_dirs(version_dir: Path, iso3: str) -> list[tuple[int, Path]]:
-    """Return [(level, layer_dir), ...] sorted by level for native admin dirs."""
-    if not version_dir.exists():
-        return []
-    pattern = admin_layer_pattern(iso3)
-    found = []
-    for d in version_dir.iterdir():
-        if not d.is_dir():
-            continue
-        m = pattern.match(d.name)
-        if m:
-            found.append((int(m.group(1)), d))
-    return sorted(found)
 
 
 def _get_admin_level_full(original_version_dir: Path, iso3: str) -> int | None:
@@ -70,9 +49,8 @@ def _get_admin_level_full(original_version_dir: Path, iso3: str) -> int | None:
             seed = original_version_dir / layer_name / f"{layer_name}.parquet"
             if seed.exists():
                 return level
-    dirs = _admin_dirs(original_version_dir, iso3)
-    levels = [level for level, d in dirs if (d / f"{d.name}.parquet").exists()]
-    return max(levels) if levels else None
+    layers = admin_layers(original_version_dir, iso3)
+    return layers[-1][0] if layers else None
 
 
 def _admin_group_cols(all_cols: list[str], level: int) -> list[str]:
@@ -80,11 +58,15 @@ def _admin_group_cols(all_cols: list[str], level: int) -> list[str]:
 
     Empty list means no pcode column exists for this level.
     """
-    keep = {
-        f"adm{L}{s}"
-        for L in range(level + 1)
-        for s in ("_name", "_name1", "_name2", "_name3", "_pcode")
-    } | {"lang", "lang1", "lang2", "lang3", "version", "valid_on", "valid_to"}
+    keep = {f"adm{L}{s}" for L in range(level + 1) for s in ADM_SUFFIXES} | {
+        "lang",
+        "lang1",
+        "lang2",
+        "lang3",
+        "version",
+        "valid_on",
+        "valid_to",
+    }
     cols = [c for c in all_cols if c in keep]
     pcodes = {f"adm{L}_pcode" for L in range(level + 1)}
     if not any(c in pcodes for c in cols):
@@ -247,17 +229,11 @@ def _process_service(
 
 def enumerate_services(root_dir: Path) -> list[tuple[str, str]]:
     """Return [(iso3, version), ...] for all service dirs in root_dir."""
-    services = []
-    for country_dir in sorted(root_dir.iterdir()):
-        if not country_dir.is_dir() or country_dir.name.startswith("."):
-            continue
-        for version_dir in sorted(country_dir.iterdir()):
-            if not version_dir.is_dir() or version_dir.name.startswith("."):
-                continue
-            v = version_dir.name
-            if (v.startswith("v") and v[1:].isdigit()) or v == "latest":
-                services.append((country_dir.name, v))
-    return services
+    return [
+        (iso3, version)
+        for iso3, version, _ in iter_version_dirs(root_dir)
+        if (version.startswith("v") and version[1:].isdigit()) or version == "latest"
+    ]
 
 
 def run(original_dir: Path, extended_dir: Path) -> None:
@@ -309,19 +285,6 @@ def run(original_dir: Path, extended_dir: Path) -> None:
             )
             continue
 
-        try:
-            _portolan(
-                [
-                    "add",
-                    f"{iso3}/{version}/",
-                    "--workers",
-                    workers,
-                    "--pmtiles",
-                    "--force",
-                ],
-                cwd=extended_dir,
-            )
-        except CalledProcessError:
-            logger.warning("portolan add failed for %s/%s (continuing)", iso3, version)
+        portolan_add(extended_dir, f"{iso3}/{version}/", workers)
 
     write_json_state(fingerprints_path, new_fingerprints)

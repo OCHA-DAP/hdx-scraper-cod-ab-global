@@ -14,8 +14,6 @@ import geopandas as gpd
 import pandas as pd
 from hdx.location.country import Country
 
-from .services import iter_included_version_dirs
-
 logger = logging.getLogger(__name__)
 
 _MAX_ADMIN = 4
@@ -114,6 +112,37 @@ def _project_filled(target_level: int, deepest_level: int, parquet_path: Path) -
     return f"    SELECT\n        {cols_str}\n    FROM read_parquet('{parquet_path}')"
 
 
+def _original_selects(
+    admin_level: int,
+    version_dirs: list[tuple[str, Path]],
+    con: duckdb.DuckDBPyConnection,
+) -> list[str]:
+    """Return one projected SELECT per country with a native admin_level layer."""
+    selects = []
+    for iso3, version_dir in version_dirs:
+        layer_name = f"{iso3}_admin{admin_level}"
+        parquet_path = version_dir / layer_name / f"{layer_name}.parquet"
+        if parquet_path.exists():
+            selects.append(_project_original(iso3, admin_level, parquet_path, con))
+    return selects
+
+
+def _filled_selects(
+    admin_level: int, version_dirs: list[tuple[str, Path]], min_level: int
+) -> list[str]:
+    """Return one projected, filled-up-to-admin_level SELECT per country."""
+    selects = []
+    for iso3, version_dir in version_dirs:
+        deepest = _deepest_level(version_dir, iso3, min_level, _MAX_ADMIN)
+        if deepest is None:
+            continue
+        source_level = min(admin_level, deepest)
+        source_layer_name = f"{iso3}_admin{source_level}"
+        parquet_path = version_dir / source_layer_name / f"{source_layer_name}.parquet"
+        selects.append(_project_filled(admin_level, deepest, parquet_path))
+    return selects
+
+
 def _assemble_admin_level(  # noqa: PLR0913
     stage: str,
     admin_level: int,
@@ -126,24 +155,11 @@ def _assemble_admin_level(  # noqa: PLR0913
 
     Returns True if any input existed (and out_path was written).
     """
-    selects = []
-    for iso3, version_dir in version_dirs:
-        if stage == "original":
-            layer_name = f"{iso3}_admin{admin_level}"
-            parquet_path = version_dir / layer_name / f"{layer_name}.parquet"
-            if not parquet_path.exists():
-                continue
-            selects.append(_project_original(iso3, admin_level, parquet_path, con))
-            continue
-
-        deepest = _deepest_level(version_dir, iso3, min_level, _MAX_ADMIN)
-        if deepest is None:
-            continue
-        source_level = min(admin_level, deepest)
-        source_layer_name = f"{iso3}_admin{source_level}"
-        parquet_path = version_dir / source_layer_name / f"{source_layer_name}.parquet"
-        selects.append(_project_filled(admin_level, deepest, parquet_path))
-
+    selects = (
+        _original_selects(admin_level, version_dirs, con)
+        if stage == "original"
+        else _filled_selects(admin_level, version_dirs, min_level)
+    )
     if not selects:
         return False
 
@@ -192,10 +208,9 @@ def _max_original_level(
 
 
 def build_boundaries_gdb(
-    root_dir: Path, run_version: str, stage: str, output_dir: Path
+    version_dirs: list[tuple[str, Path]], run_version: str, stage: str, output_dir: Path
 ) -> Path:
     """Assemble one stage's global GDB for a run_version. Returns the zip path."""
-    version_dirs = iter_included_version_dirs(root_dir, run_version)
     output_dir.mkdir(parents=True, exist_ok=True)
     gdb_path = output_dir / f"global_admin_boundaries_{stage}_{run_version}.gdb"
     rmtree(gdb_path, ignore_errors=True)

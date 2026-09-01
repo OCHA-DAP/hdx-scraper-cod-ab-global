@@ -8,7 +8,7 @@ from pandas import read_parquet
 
 from hdx.scraper.cod_ab_global.config import UPDATED_BY_SCRIPT
 
-cwd = Path(__file__).parent
+from . import base_dataset
 
 _BREAK = "  \n  \n"
 
@@ -136,10 +136,7 @@ def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
     layer_count = len(df)
     dataset_info = _get_dataset_info(run_version)
     dataset_info["notes"] = _get_notes(layer_count, run_version)
-    dataset = Dataset(dataset_info)
-    dataset.update_from_yaml(path=cwd / "../config/hdx_dataset_static.yaml")
-    dataset.add_other_location("world")
-    dataset.add_tags(["administrative boundaries-divisions"])
+    dataset = base_dataset(dataset_info)
     dataset.set_time_period(start_date, end_date)
     return dataset
 

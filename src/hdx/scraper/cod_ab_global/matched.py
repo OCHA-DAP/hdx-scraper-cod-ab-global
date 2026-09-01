@@ -7,22 +7,23 @@ Admin0 is excluded; layer naming mirrors original/ and extended/ exactly.
 import logging
 import tempfile
 from pathlib import Path
-from subprocess import CalledProcessError
 
 import duckdb
 import geoparquet_io as gpio
 from topo_tools import edge_clip as topo_clip
 from topo_tools import topo_clean
 
-from .config import ARCGIS_SERVICES_URL, PORTOLAN_WORKERS
-from .extended import _write_gpq2, enumerate_services, file_fingerprint
-from .original import (
-    _portolan,
+from .catalog import (
     admin_layer_pattern,
+    admin_layers,
+    file_fingerprint,
+    portolan_add,
     read_json_state,
     remove_stale_versions,
     write_json_state,
 )
+from .config import ARCGIS_SERVICES_URL, PORTOLAN_WORKERS
+from .extended import _write_gpq2, enumerate_services
 from .utils import generate_token
 
 logger = logging.getLogger(__name__)
@@ -82,21 +83,6 @@ def _clip_to_bnda(
         con.close()
 
 
-def _admin_layers(version_dir: Path, iso3: str) -> list[tuple[int, Path]]:
-    """Return [(level, layer_dir), ...] with an existing parquet, sorted by level."""
-    if not version_dir.exists():
-        return []
-    pattern = admin_layer_pattern(iso3)
-    found = []
-    for d in version_dir.iterdir():
-        if not d.is_dir():
-            continue
-        m = pattern.match(d.name)
-        if m and (d / f"{d.name}.parquet").exists():
-            found.append((int(m.group(1)), d))
-    return sorted(found)
-
-
 def _process_service(
     iso3: str,
     version: str,
@@ -106,9 +92,7 @@ def _process_service(
 ) -> bool:
     """Clip all admin1+ layers for one service to UN boundaries."""
     layers = [
-        (level, d)
-        for level, d in _admin_layers(extended_version_dir, iso3)
-        if level > 0
+        (level, d) for level, d in admin_layers(extended_version_dir, iso3) if level > 0
     ]
     if not layers:
         logger.warning(
@@ -161,7 +145,7 @@ def run(extended_dir: Path, matched_dir: Path, catalogs_dir: Path) -> None:
         extended_version_dir = extended_dir / iso3 / version
         matched_version_dir = matched_dir / iso3 / version
 
-        layers = _admin_layers(extended_version_dir, iso3)
+        layers = admin_layers(extended_version_dir, iso3)
         if not layers:
             continue
         deepest_level, deepest_dir = layers[-1]
@@ -186,19 +170,6 @@ def run(extended_dir: Path, matched_dir: Path, catalogs_dir: Path) -> None:
             )
             continue
 
-        try:
-            _portolan(
-                [
-                    "add",
-                    f"{iso3}/{version}/",
-                    "--workers",
-                    workers,
-                    "--pmtiles",
-                    "--force",
-                ],
-                cwd=matched_dir,
-            )
-        except CalledProcessError:
-            logger.warning("portolan add failed for %s/%s (continuing)", iso3, version)
+        portolan_add(matched_dir, f"{iso3}/{version}/", workers)
 
     write_json_state(fingerprints_path, new_fingerprints)
