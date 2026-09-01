@@ -367,6 +367,20 @@ def _push_catalog_files(work_dir: Path, remote: str) -> None:
     )
 
 
+def push_top_catalog(work_dir: Path, remote: str) -> None:
+    """Upload work_dir/catalog.json to the root of remote."""
+    _run(
+        [
+            "aws",
+            "s3",
+            "cp",
+            str(work_dir / "catalog.json"),
+            f"{remote.rstrip('/')}/catalog.json",
+        ],
+        check=True,
+    )
+
+
 def _ensure_root_catalog(work_dir: Path) -> None:
     """Initialise the portolan catalog rooted at work_dir if not present."""
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -381,6 +395,42 @@ def _ensure_root_catalog(work_dir: Path) -> None:
         cwd=work_dir,
     )
     _write_catalog_metadata(work_dir)
+
+
+_TREE_TITLES = {
+    "original": "Original",
+    "extended": "Extended",
+    "matched": "Matched",
+    "global": "Global",
+}
+
+
+def write_top_catalog(work_dir: Path, tree_names: list[str]) -> None:
+    """Write work_dir/catalog.json, linking each sibling tree's own catalog.json."""
+    data = {
+        "type": "Catalog",
+        "id": "cod-ab",
+        "stac_version": "1.1.0",
+        "description": _CATALOG_TITLE,
+        "links": [
+            {
+                "rel": "root",
+                "href": "./catalog.json",
+                "type": "application/json",
+                "title": _CATALOG_TITLE,
+            },
+            *(
+                {
+                    "rel": "child",
+                    "href": f"./{name}/catalog.json",
+                    "type": "application/json",
+                    "title": _TREE_TITLES.get(name, name.title()),
+                }
+                for name in tree_names
+            ),
+        ],
+    }
+    (work_dir / "catalog.json").write_text(json.dumps(data, indent=2))
 
 
 def remove_stale_versions(valid_pairs: set[tuple[str, str]], work_dir: Path) -> None:

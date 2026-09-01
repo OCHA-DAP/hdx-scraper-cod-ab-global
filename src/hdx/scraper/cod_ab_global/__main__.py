@@ -23,7 +23,13 @@ from .extended import run as extended_run
 from .global_ import run as global_run
 from .hdx_export import run as hdx_export_run
 from .matched import run as matched_run
-from .original import _ensure_root_catalog, _portolan, _push_catalog_files
+from .original import (
+    _ensure_root_catalog,
+    _portolan,
+    _push_catalog_files,
+    push_top_catalog,
+    write_top_catalog,
+)
 from .original import run as original_run
 
 logging.basicConfig(
@@ -53,6 +59,7 @@ def main() -> None:
     extended_run(original_dir, extended_dir)
     matched_run(extended_dir, matched_dir, work_dir)
     global_run(matched_dir, global_dir)
+    write_top_catalog(work_dir, ["original", "extended", "matched", "global"])
 
     # Consolidated push after all stages complete, so users never see partial state.
     workers = str(PORTOLAN_WORKERS)
@@ -66,6 +73,7 @@ def main() -> None:
             logger.warning(
                 "portolan check reported issues for %s (continuing)", catalog_dir.name
             )
+    push_top_catalog(work_dir, SOURCECOOP_REMOTE)
 
     # Pushing to HDX needs HDX_EXPORT_PUSH, plus ~/.hdx_configuration.yaml's hdx_site.
     hdx_export_output_dir = (

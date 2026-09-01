@@ -273,6 +273,10 @@ and all downstream `topo_tools` recomputation for every stage.
 
 ### STAC catalog structure
 
+- `work_dir/catalog.json`, root STAC Catalog linking the four sibling trees via `child`
+  links (`original.py::write_top_catalog()`), rewritten every run from `__main__.py`
+  after all four stages complete; pushed to `{SOURCECOOP_REMOTE}/catalog.json` via
+  `original.py::push_top_catalog()`
 - `<tree>/<iso3>/<version>/catalog.json`, service-level STAC Catalog; `original/`'s is
   enriched with `cod_ab:*` fields from `COD_Global_Metadata`
   (`original.py::_enrich_service_catalog()`)
