@@ -1,11 +1,7 @@
 """Build the HDX metadata CSV/parquet resources from the portolan catalog.
 
-Replaces download/metadata/refactor.py's output role. Every field here is
-already written into each service's catalog.json by
-original.py::_enrich_service_catalog — this module only concatenates those
-cod_ab:* fields into the dataframe shape the old metadata CSV/parquet
-resources expect, then reuses the existing utils.py::save_metadata()
-unchanged.
+Concatenates each service's cod_ab:* catalog.json fields (written by
+original/_metadata.py::enrich_service_catalog) via utils.py::save_metadata().
 """
 
 from pathlib import Path
