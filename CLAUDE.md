@@ -323,6 +323,12 @@ and all downstream `topo_tools` recomputation for every stage.
   `_push.py::push_all()` calls `catalog/_top.py::sync_tree_deletions()`
   (`aws s3 sync --delete`) after each tree's push; remove this call once `#753` ships a
   native flag and this repo's `portolan-cli` pin is bumped.
+- **portolan-cli 0.8.0** (not yet filed upstream): `portolan add <subpath>` writes asset
+  `href`s relative to `<subpath>` instead of the catalog root, but `push` always resolves
+  `href` from the catalog root, breaking every collection added this way (used by
+  `original/`, `extended/`, `matched/`, since they call `portolan_add(catalog_dir, f"{iso3}/{version}/", workers)`;
+  `global/` is unaffected, it calls `add .` from the catalog root). Workaround:
+  `catalog/_verify.py::normalize_asset_hrefs()`, run before every push in `_push.py`.
 
 ### HTTP timeout for large layers
 
