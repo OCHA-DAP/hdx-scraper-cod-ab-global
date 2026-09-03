@@ -4,7 +4,16 @@
 [![Coverage Status](https://coveralls.io/repos/github/OCHA-DAP/hdx-scraper-cod-ab/badge.svg?branch=main&ts=1)](https://coveralls.io/github/OCHA-DAP/hdx-scraper-cod-ab?branch=main)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-This script downloads the latest Common Operational Datasets - Administrative Boundaries (COD-AB) from [gis.unocha.org](https://gis.unocha.org/server/rest/services/Hosted) and generates a global dataset.
+This pipeline mirrors Common Operational Datasets - Administrative Boundaries (COD-AB) from
+[gis.unocha.org](https://gis.unocha.org/server/rest/services/Hosted), processes them into
+edge-extended and edge-matched global variants, and publishes the results to two destinations:
+
+- **HDX**: [cod-ab-global](https://data.humdata.org/dataset/cod-ab-global),
+  [cod-ab-global-historic](https://data.humdata.org/dataset/cod-ab-global-historic), and
+  [global-pcodes](https://data.humdata.org/dataset/global-pcodes)
+- **source.coop**: `s3://us-west-2.opendata.source.coop/hdx/cod-ab/`, as four sibling
+  [STAC](https://stacspec.org/) catalogs (`original/`, `extended/`, `matched/`, `global/`), one
+  per processing stage. See [CLAUDE.md](CLAUDE.md) for the catalog layout and design notes.
 
 ## Development
 
@@ -18,52 +27,56 @@ This script downloads the latest Common Operational Datasets - Administrative Bo
     pre-commit install
 ```
 
-For the script to run, you will need to have a file called `.hdx_configuration.yaml` in your home directory containing your HDX key, e.g.:
+### Configuration
 
-```shell
-hdx_key: "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-hdx_read_only: false
-hdx_site: prod
-```
+The pipeline needs three sets of credentials:
 
-You will also need to supply the universal `.useragents.yaml` file in your home directory as specified in the parameter `user_agent_config_yaml` passed to facade in run.py. The collector reads the key `hdx-scraper-cod-ab-global` as specified in the parameter `user_agent_lookup`.
+1. **ArcGIS** (required): `ARCGIS_USERNAME` and `ARCGIS_PASSWORD` for
+   [gis.unocha.org](https://gis.unocha.org/server/rest/services/Hosted). The `Hosted` folder is
+   the default export location for the ArcGIS Enterprise Server; COD-AB layers (prefixed
+   `cod_ab_`) require authentication.
+2. **AWS** (required to push to source.coop): `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+   with write access to the source.coop S3 bucket.
+3. **HDX** (required to push to HDX): a `.hdx_configuration.yaml` file in your home directory:
 
-Alternatively, you can set up environment variables: `USER_AGENT`, `HDX_KEY`, `HDX_SITE`, `EXTRA_PARAMS`, `TEMP_DIR`, and `LOG_FILE_ONLY`.
+   ```yaml
+   hdx_key: "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+   hdx_read_only: false
+   hdx_site: prod
+   ```
+
+   Plus the universal `.useragents.yaml` file in your home directory, containing the key
+   `hdx-scraper-cod-global`.
 
 ### Running Pipeline
-
-Execute the pipeline with:
 
 ```shell
     python run.py
 ```
 
-## Configuration
+or equivalently `python -m hdx.scraper.cod_ab_global`.
+
+Pushing to HDX is opt-in: set `HDX_EXPORT_PUSH=true` in addition to the HDX credentials above,
+otherwise the HDX export stage builds locally without writing anything. Pushing to source.coop
+happens whenever AWS credentials are present.
 
 ### Environment Variables
 
-This pipeline is configured to access COD-AB data from [gis.unocha.org](https://gis.unocha.org/server/rest/services/Hosted). The `Hosted` folder is the default export location for the ArcGIS Enterprise Server, many other layers are available here aside from COD-AB layers. COD-AB layers are distinguished as those starting with `Hosted/cod_ab_`. They are not visible by default, and require authentication to access. The following environment variables set the username and password:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ARCGIS_USERNAME` / `ARCGIS_PASSWORD` | (none) | ArcGIS Enterprise credentials |
+| `ARCGIS_SERVER` | `https://gis.unocha.org` | ArcGIS Enterprise host |
+| `ISO3_INCLUDE` / `ISO3_EXCLUDE` | (none) | Comma-separated ISO-3 codes to include/exclude, e.g. `AFG,BFA,CAF`; accepts versioned values like `AFG_v01` to pin a specific version |
+| `SOURCECOOP_REMOTE` | `s3://us-west-2.opendata.source.coop/hdx/cod-ab/` | source.coop push target |
+| `PORTOLAN_WORK_DIR` | (temp dir) | Local work directory for the four sibling catalogs; set to a persistent path for incremental local runs |
+| `PORTOLAN_WORKERS` | up to 8 | Parallel workers for portolan operations |
+| `HDX_EXPORT_PUSH` | `false` | Set `true` to actually push the HDX export (requires `.hdx_configuration.yaml`) |
+| `HDX_EXPORT_OUTPUT_DIR` | (temp dir under work dir's parent) | Local output directory for the HDX export build |
+
+### Docker
 
 ```shell
-ARCGIS_USERNAME=
-ARCGIS_PASSWORD=
+docker build -t hdx-scraper-cod-ab-global .
 ```
 
-With these variables set, the pipeline can run. Without any additional parameters, it will download a [metadata table](https://gis.unocha.org/server/rest/services/Hosted/COD_Global_Metadata/FeatureServer/0) and create a global resource at [data.humdata.org/dataset/cod-ab-global](https://data.humdata.org/dataset/cod-ab-global). To limit which locations are used for the global datasets, two additional environment variables are available:
-
-```shell
-ISO3_INCLUDE=
-ISO3_EXCLUDE=
-```
-
-`ISO3_INCLUDE` accepts a list of ISO-3 codes such as `AFG,BFA,CAF`. This is useful if only a small number of locations need to be included in the global dataset. Conversely, if most locations are intended to be run with the exception of a few, it may be easier to pass those to `ISO3_EXCLUDE`.
-
-Both these variables also accept versioned values. For example, if there is an issue with `AFG_v02`, setting `ISO3_INCLUDE=AFG_v01` will force the use of the previous version. This effect can also be achieved by setting `ISO3_EXCLUDE=AFG_v02`. Once `AFG_v03` becomes available, the `INCLUDE` configuration will not run with the new layer, while the `EXCLUDE` configuration will.
-
-The final environment variable determines whether to create datasets using latest and/or historic boundaries. Latest boundaries will only include the last version. For example, if AFG_v01, AFG_v02, and AFG_v03 are all available, AFG_v03 will be used for the latest dataset, with AFG_v01 and AFG_v02 being used for the historic dataset. If only AFG_v01 is available, it will be used for the latest dataset and nothing will be included for that location in the historic version.
-
-Available options to control this output are `LATEST` (default), `HISTORIC`, or `LATEST,HISTORIC`:
-
-```shell
-RUN_VERSION=LATEST
-```
+The image's `ENTRYPOINT` runs `python -m hdx.scraper.cod_ab_global` directly.
