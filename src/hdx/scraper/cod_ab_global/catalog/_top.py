@@ -56,6 +56,30 @@ def push_top_catalog(work_dir: Path, remote: str) -> None:
     )
 
 
+def sync_tree_deletions(catalog_dir: Path, remote: str) -> None:
+    """Mirror-delete remote objects for services `portolan rm` removed locally."""
+    # portolan-cli#753: portolan push never deletes remote objects.
+    _run(
+        [
+            "aws",
+            "s3",
+            "sync",
+            str(catalog_dir),
+            remote.rstrip("/"),
+            "--delete",
+            "--exclude",
+            ".portolan/*",
+            "--exclude",
+            "*/.portolan/*",
+            "--exclude",
+            ".state/*",
+            "--exclude",
+            "*/.state/*",
+        ],
+        check=True,
+    )
+
+
 def _push_catalog_files(work_dir: Path, remote: str) -> None:
     """Sync intermediate catalog.json/README.md; portolan push skips those."""
     _run(

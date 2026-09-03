@@ -317,6 +317,12 @@ and all downstream `topo_tools` recomputation for every stage.
   `geoparquet_io.core.arcgis._build_schema_from_layer_info` to force `int64` on any field
   whose declared type is `esriFieldTypeBigInteger`; safe to leave in place once the PR
   merges, since re-applying the same mapping is a no-op.
+- **[portolan-sdi/portolan-cli#753](https://github.com/portolan-sdi/portolan-cli/issues/753)**
+  (open): `portolan push` never deletes remote objects orphaned by a local `portolan rm`,
+  leaving removed ArcGIS services live on source.coop forever. Workaround:
+  `_push.py::push_all()` calls `catalog/_top.py::sync_tree_deletions()`
+  (`aws s3 sync --delete`) after each tree's push; remove this call once `#753` ships a
+  native flag and this repo's `portolan-cli` pin is bumped.
 
 ### HTTP timeout for large layers
 

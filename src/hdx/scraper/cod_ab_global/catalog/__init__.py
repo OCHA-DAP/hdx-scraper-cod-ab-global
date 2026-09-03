@@ -6,7 +6,12 @@ Tree-walking, fingerprinting, catalog-metadata, `portolan` subprocess helpers.
 from ._json import read_catalog, read_json_state, write_json_state
 from ._service import CATALOG_TITLE, _ensure_root_catalog
 from ._subprocess import _portolan, portolan_add
-from ._top import _push_catalog_files, push_top_catalog, write_top_catalog
+from ._top import (
+    _push_catalog_files,
+    push_top_catalog,
+    sync_tree_deletions,
+    write_top_catalog,
+)
 from ._tree import (
     ADM_SUFFIXES,
     admin_layer_pattern,
@@ -31,6 +36,7 @@ __all__ = [
     "read_catalog",
     "read_json_state",
     "remove_stale_versions",
+    "sync_tree_deletions",
     "write_json_state",
     "write_top_catalog",
 ]
