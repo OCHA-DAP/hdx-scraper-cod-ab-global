@@ -12,6 +12,7 @@ from portolan_cli.extract.arcgis.orchestrator import (
 
 from hdx.scraper.cod_ab_global.catalog import remove_stale_versions
 from hdx.scraper.cod_ab_global.config import ARCGIS_SERVICES_URL
+from hdx.scraper.cod_ab_global.extended import _write_gpq2
 from hdx.scraper.cod_ab_global.utils import fetch_json
 
 from ._metadata import write_service_metadata
@@ -86,6 +87,11 @@ def extract_service(
     except Exception:
         logger.exception("Extraction failed for %s", service_name)
         return layer_updated, True
+
+    for parquet_path in version_dir.glob("*/*.parquet"):
+        tmp_path = parquet_path.with_suffix(".gpq2.tmp")
+        _write_gpq2(parquet_path, tmp_path)
+        tmp_path.replace(parquet_path)
 
     meta = metadata.get(service_name.lower())
     write_service_metadata(version_dir, service_name, meta)

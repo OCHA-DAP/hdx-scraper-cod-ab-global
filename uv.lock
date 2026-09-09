@@ -1037,10 +1037,11 @@ wheels = [
 
 [[package]]
 name = "geoparquet-io"
-version = "1.4.0"
+version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
+    { name = "botocore" },
     { name = "click" },
     { name = "click-plugins" },
     { name = "duckdb" },
@@ -1065,9 +1066,9 @@ dependencies = [
     { name = "s3fs" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/98/fb6f9ebbacf2ef323e350014a1391a7c9e1b88b2ad3c34f9283a9f801fc5/geoparquet_io-1.4.0.tar.gz", hash = "sha256:3460c6c066c66a8c407bf3c2d410755bad1be7431265f354aa7e986879d94ad3", size = 3485305, upload-time = "2026-08-30T21:36:51.618Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/ae/c03cfe1a4b6fefa6399dd3cc9b87130f5c92dacfa5ad9305d828aae08ebb/geoparquet_io-1.5.0.tar.gz", hash = "sha256:07d99595231d401a77ef691846d29395f6ceb3934c4562cf136db12f776554de", size = 3757859, upload-time = "2026-09-09T08:21:49.893Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/7e/417af5da86e3691f389b6084acdbdaf20823d16abba21e64cfe913351d9d/geoparquet_io-1.4.0-py3-none-any.whl", hash = "sha256:eecc12cb9103392b4193c9aad0a2fecac3bacf084e78deeefff4b4a997dd2880", size = 684763, upload-time = "2026-08-30T21:36:49.813Z" },
+    { url = "https://files.pythonhosted.org/packages/23/0c/1538f0a15be0f4c46972a01cd9f508be491ca0659f8030256570887e40bb/geoparquet_io-1.5.0-py3-none-any.whl", hash = "sha256:6ceba31a9cb8b143e00f371fbc7235a23866ba43d89374cb55ada5b4385fd293", size = 762603, upload-time = "2026-09-09T08:21:48.068Z" },
 ]
 
 [[package]]

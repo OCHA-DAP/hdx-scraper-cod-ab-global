@@ -311,12 +311,17 @@ and all downstream `topo_tools` recomputation for every stage.
 - **[portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)**
   (closed): native auth support (`ExtractionOptions.token`) landed, no workaround needed.
 - **[geoparquet/geoparquet-io#786](https://github.com/geoparquet/geoparquet-io/pull/786)**
-  (open PR): `esriFieldTypeBigInteger` (and `DateOnly`/`TimeOnly`) are missing from
-  `TYPE_MAPPING` in `_build_schema_from_layer_info`, so fields of that type are silently
-  coerced to string instead of int64. Workaround: `original/_patches.py` monkeypatches
-  `geoparquet_io.core.arcgis._build_schema_from_layer_info` to force `int64` on any field
-  whose declared type is `esriFieldTypeBigInteger`; safe to leave in place once the PR
-  merges, since re-applying the same mapping is a no-op.
+  (merged in 1.5.0): `esriFieldTypeBigInteger`/`DateOnly`/`TimeOnly` now map correctly in
+  `TYPE_MAPPING`; the monkeypatch in `original/_patches.py` is removed.
+- **portolan-cli 0.8.0** `add` step (not yet filed upstream): `_needs_spatial_rewrite` in
+  `preparation.py` only recognizes the GeoParquet 1.x `covering` struct column, not
+  GeoParquet 2.0's native bbox support. Every `portolan add` call silently reconverts a 2.0
+  file lacking `covering` back to 1.1 via `gpio.convert(...).write(...)` with no version
+  argument (gpio's own default), so `extended/_write.py::write_gpq2()`'s 2.0 output never
+  actually persists as 2.0. Workaround: `add_bbox: false` in each tree's
+  `.portolan/config.yaml` (`catalog/_service.py::_write_catalog_config()`), which stops the
+  rewrite but also disables portolan's own PTL-DAT-006/007 row-order checks for this
+  catalog.
 - **[portolan-sdi/portolan-cli#753](https://github.com/portolan-sdi/portolan-cli/issues/753)**
   (open): `portolan push` never deletes remote objects orphaned by a local `portolan rm`,
   leaving removed ArcGIS services live on source.coop forever. Workaround:

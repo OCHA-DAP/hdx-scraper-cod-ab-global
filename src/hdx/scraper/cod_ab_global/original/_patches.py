@@ -5,7 +5,6 @@ See CLAUDE.md's "Known upstream issues" section for the tracked issue numbers.
 
 import geoparquet_io.core.arcgis as _gpio_arcgis
 import portolan_cli.extract.arcgis.discovery as _arcgis_discovery
-import pyarrow as pa
 
 # discover_layers() has no token param, unlike discover_services() (portolan-cli#855).
 _orig_fetch_json = _arcgis_discovery._fetch_json  # noqa: SLF001
@@ -48,27 +47,3 @@ def _patched_esrijson_page_to_table(page: dict, con: object = None) -> object:
 
 
 _gpio_arcgis._esrijson_page_to_table = _patched_esrijson_page_to_table  # noqa: SLF001
-
-# esriFieldTypeBigInteger is missing from gpio's TYPE_MAPPING, so fields of
-# that type silently fall back to string instead of int64.
-_orig_build_schema_from_layer_info = _gpio_arcgis._build_schema_from_layer_info  # noqa: SLF001
-
-
-def _patched_build_schema_from_layer_info(layer_info: object) -> pa.Schema:
-    schema = _orig_build_schema_from_layer_info(layer_info)
-    big_int_fields = {
-        f["name"] for f in layer_info.fields if f["type"] == "esriFieldTypeBigInteger"
-    }
-    if not big_int_fields:
-        return schema
-    return pa.schema(
-        [
-            field.with_type(pa.int64()) if field.name in big_int_fields else field
-            for field in schema
-        ]
-    )
-
-
-_gpio_arcgis._build_schema_from_layer_info = (  # noqa: SLF001
-    _patched_build_schema_from_layer_info
-)
