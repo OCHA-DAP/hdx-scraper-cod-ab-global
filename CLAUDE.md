@@ -241,7 +241,7 @@ work_dir/
     <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet   (admin0 excluded)
   global/     cross-country composite, no iso3 anywhere in its path
     admin{1..4}/admin{N}.parquet
-  .bnda/        UN BNDA download, outside all four catalogs
+.bnda/        UN BNDA download, sibling of work_dir, never inside any pushed catalog tree
 ```
 
 `original/`, `extended/`, and `matched/` share the exact same relative path shape and

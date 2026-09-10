@@ -24,8 +24,8 @@ def _clean_bnda(raw_path: Path, out_path: Path) -> None:
 
 
 def ensure_bnda(catalogs_dir: Path) -> Path:
-    """Return catalogs_dir/.bnda/bnda_cty.parquet, downloading it if absent."""
-    bnda_dir = catalogs_dir / ".bnda"
+    """Return the sibling .bnda/bnda_cty.parquet, downloading it if absent."""
+    bnda_dir = catalogs_dir.parent / ".bnda"
     bnda_dir.mkdir(exist_ok=True)
     bnda_path = bnda_dir / "bnda_cty.parquet"
     if bnda_path.exists():
