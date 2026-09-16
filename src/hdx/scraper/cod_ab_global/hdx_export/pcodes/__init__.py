@@ -64,7 +64,9 @@ def build_pcodes(original_dir: Path, output_dir: Path) -> Path:
             df_all = (
                 df_all.sort_values(by=["Location", "Admin Level", "P-Code", "Name"])
                 .drop_duplicates()
-                .drop_duplicates(subset=["P-Code"], keep=False)
+                # Some countries (e.g. MMR) reuse a P-Code string across admin levels
+                # for different units, so ambiguity is only real within the same level.
+                .drop_duplicates(subset=["Admin Level", "P-Code"], keep=False)
             )
         generate_pcode_lengths(original_dir, pcodes_dir, df_all, con)
         df_all["Parent P-Code"] = df_all.apply(
