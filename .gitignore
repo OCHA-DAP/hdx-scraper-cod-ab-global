@@ -171,6 +171,9 @@ cython_debug/
 /portolan/
 /portolan_old/
 
+/.tmp/
+/docs/
+
 # UN BNDA reference data — not cleared for redistribution, must never be committed
 /.bnda/
 
