@@ -10,6 +10,7 @@ from .catalog import (
     find_incomplete_collections,
     normalize_asset_hrefs,
     push_top_catalog,
+    remove_nested_index_versions,
     repair_collections,
     sync_tree_deletions,
 )
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 def _push_tree(catalog_dir: Path, remote: str, workers: str) -> list[str]:
     """Push one tree and repair any collection missing from remote afterward."""
+    remove_nested_index_versions(catalog_dir)
     normalize_asset_hrefs(catalog_dir)
     try:
         _portolan(["push", remote, "--workers", workers, "--verbose"], cwd=catalog_dir)

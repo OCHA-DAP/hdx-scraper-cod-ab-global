@@ -46,6 +46,22 @@ def normalize_asset_hrefs(catalog_root: Path) -> int:
     return fixed
 
 
+def remove_nested_index_versions(catalog_root: Path) -> int:
+    """Delete index versions.json files below the root that push treats as collections.
+
+    Workaround: push re-uploads every file under such a dir on every run. Idempotent.
+    """
+    removed = 0
+    for versions_path in sorted(catalog_root.rglob("versions.json")):
+        rel_parts = versions_path.parent.relative_to(catalog_root).parts
+        if not rel_parts or any(part.startswith(".") for part in rel_parts):
+            continue
+        if not _is_leaf_collection(read_json_state(versions_path)):
+            versions_path.unlink()
+            removed += 1
+    return removed
+
+
 def _required_remote_keys(catalog_root: Path, prefix: str) -> dict[str, list[str]]:
     """Map each collection id to the remote keys its current version needs."""
     required: dict[str, list[str]] = {}

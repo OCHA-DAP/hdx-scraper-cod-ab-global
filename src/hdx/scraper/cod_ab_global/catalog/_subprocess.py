@@ -6,6 +6,8 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from subprocess import run as _run
 
+from ._pmtiles import build_pmtiles
+
 logger = logging.getLogger(__name__)
 
 _PORTOLAN = str(Path(sys.executable).parent / "portolan")
@@ -23,6 +25,7 @@ def portolan_add(
     if datetime_:
         args += ["--datetime", datetime_]
     try:
+        build_pmtiles(cwd / rel_path)
         _portolan(args, cwd=cwd)
-    except CalledProcessError:
+    except (CalledProcessError, RuntimeError, ValueError, MemoryError):
         logger.warning("portolan add failed for %s (continuing)", rel_path)

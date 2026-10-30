@@ -11,7 +11,7 @@ This file provides guidance to code agents when working with code in this reposi
 - No vertex reduction or tolerance-based generalization of any kind
 - No lossy geometry transformations at any stage of the pipeline
 
-This rule applies to all stages: download, processing, edge extension, clipping, PMTiles generation, and any format conversion. The source data must pass through at full fidelity. If a tool or operation requires precision reduction to succeed, find a different approach — do not apply the reduction.
+This rule applies to all stages: download, processing, edge extension, clipping, PMTiles generation, and any format conversion. The source data must pass through at full fidelity. PMTiles are the one exception: overview levels generalize at coarser zooms, but the finest zoom must stay as close to the source geometry as tile coordinate precision allows. If a tool or operation requires precision reduction to succeed, find a different approach — do not apply the reduction.
 
 ## Overview
 
@@ -252,6 +252,10 @@ trees is its own independent portolan catalog (own `.portolan/config.yaml`,
 per tree, to its own `{SOURCECOOP_REMOTE}/{original,extended,matched,global}/` subpath,
 after all four stages complete (`_pipeline.py`).
 
+PMTiles are built by tylertoo (`catalog/_pmtiles.py::build_pmtiles()`, z0-z11, finest
+level verbatim) beside each parquet right before every `portolan add --pmtiles --force`,
+which registers the fresh archive without re-tiling it.
+
 ### Change detection
 
 Each tree fingerprints only its own immediate upstream input, independently:
@@ -334,6 +338,11 @@ and all downstream `topo_tools` recomputation for every stage.
   `original/`, `extended/`, `matched/`, since they call `portolan_add(catalog_dir, f"{iso3}/{version}/", workers)`;
   `global/` is unaffected, it calls `add .` from the catalog root). Workaround:
   `catalog/_verify.py::normalize_asset_hrefs()`, run before every push in `_push.py`.
+- **portolan-cli 0.8.0** (not yet filed upstream): `extract_arcgis_catalog()` writes an
+  index-format `versions.json` in each `original/<iso3>/<version>/`, and `push`'s
+  `discover_collections()` treats it as a collection whose metadata-only sync re-uploads
+  every file below it on every push. Workaround:
+  `catalog/_verify.py::remove_nested_index_versions()`, run before every push in `_push.py`.
 
 ### HTTP timeout for large layers
 
