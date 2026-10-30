@@ -4,6 +4,7 @@ Tree-walking, fingerprinting, catalog-metadata, `portolan` subprocess helpers.
 """
 
 from ._json import read_catalog, read_json_state, write_json_state
+from ._pmtiles import build_pmtiles
 from ._service import CATALOG_TITLE, _ensure_root_catalog
 from ._subprocess import _portolan, portolan_add
 from ._top import (
@@ -23,6 +24,7 @@ from ._tree import (
 from ._verify import (
     find_incomplete_collections,
     normalize_asset_hrefs,
+    remove_nested_index_versions,
     repair_collections,
 )
 
@@ -34,6 +36,7 @@ __all__ = [
     "_push_catalog_files",
     "admin_layer_pattern",
     "admin_layers",
+    "build_pmtiles",
     "file_fingerprint",
     "find_incomplete_collections",
     "iter_version_dirs",
@@ -42,6 +45,7 @@ __all__ = [
     "push_top_catalog",
     "read_catalog",
     "read_json_state",
+    "remove_nested_index_versions",
     "remove_stale_versions",
     "repair_collections",
     "sync_tree_deletions",
