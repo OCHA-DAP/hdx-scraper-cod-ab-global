@@ -7,6 +7,8 @@ from subprocess import CalledProcessError
 from hdx.scraper.cod_ab_global.catalog import _portolan, build_pmtiles
 from hdx.scraper.cod_ab_global.config import PORTOLAN_WORKERS
 
+from ._points import build_points
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +17,7 @@ def build_catalog(global_dir: Path) -> None:
     workers = str(PORTOLAN_WORKERS)
     try:
         build_pmtiles(global_dir)
+        build_points(global_dir)
         _portolan(
             ["add", ".", "--workers", workers, "--pmtiles", "--force"],
             cwd=global_dir,

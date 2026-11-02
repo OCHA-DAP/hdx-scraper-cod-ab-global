@@ -62,39 +62,45 @@ def remove_nested_index_versions(catalog_root: Path) -> int:
     return removed
 
 
-def _required_remote_keys(catalog_root: Path, prefix: str) -> dict[str, list[str]]:
-    """Map each collection id to the remote keys its current version needs."""
-    required: dict[str, list[str]] = {}
+def _required_remote_keys(
+    catalog_root: Path, prefix: str
+) -> dict[str, dict[str, Path]]:
+    """Map each collection id to its current version's remote keys and local files."""
+    required: dict[str, dict[str, Path]] = {}
     for versions_path in sorted(catalog_root.rglob("versions.json")):
         data = read_json_state(versions_path)
         if not _is_leaf_collection(data):
             continue
         collection_id = versions_path.parent.relative_to(catalog_root).as_posix()
         current = data.get("current_version")
-        keys = [f"{prefix}/{collection_id}/versions.json".lstrip("/")]
+        keys = {f"{prefix}/{collection_id}/versions.json".lstrip("/"): versions_path}
         for version_entry in data.get("versions", []):
             if version_entry.get("version") != current:
                 continue
             for asset_data in version_entry.get("assets", {}).values():
                 href = asset_data.get("href")
                 if href:
-                    keys.append(f"{prefix}/{href}".lstrip("/"))
+                    keys[f"{prefix}/{href}".lstrip("/")] = catalog_root / href
         required[collection_id] = keys
     return required
 
 
 def find_incomplete_collections(catalog_root: Path, remote: str) -> list[str]:
-    """Return collection ids whose current version is missing from remote."""
+    """Return collection ids with a current-version file missing or wrong-sized."""
     store, prefix = setup_store(remote)
     root = prefix.strip("/")
-    remote_keys: set[str] = set()
+    remote_sizes: dict[str, int] = {}
     for batch in obs.list(store, prefix=root or None):
-        remote_keys.update(entry["path"] for entry in batch)
+        remote_sizes.update((entry["path"], entry["size"]) for entry in batch)
     required = _required_remote_keys(catalog_root, root)
     return sorted(
         collection_id
         for collection_id, keys in required.items()
-        if any(key not in remote_keys for key in keys)
+        if any(
+            key not in remote_sizes
+            or (local.exists() and remote_sizes[key] != local.stat().st_size)
+            for key, local in keys.items()
+        )
     )
 
 
