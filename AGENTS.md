@@ -240,7 +240,7 @@ work_dir/
   matched/    edge-matched to UN Geodata 1:1M via topo_tools.edge_clip
     <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet   (admin0 excluded)
   global/     cross-country composite, no iso3 anywhere in its path
-    admin{1..4}/admin{N}.parquet
+    admin{1..4}/admin{N}.parquet, admin{N}.pmtiles, admin{N}_points.pmtiles
 .bnda/        UN BNDA download, sibling of work_dir, never inside any pushed catalog tree
 ```
 
@@ -250,11 +250,17 @@ the leading root segment changes when following one layer across variants. Each 
 trees is its own independent portolan catalog (own `.portolan/config.yaml`,
 `catalog.json`), initialised via `catalog/_service.py::_ensure_root_catalog()`. Push happens once
 per tree, to its own `{SOURCECOOP_REMOTE}/{original,extended,matched,global}/` subpath,
-after all four stages complete (`_pipeline.py`).
+after all four stages complete (`_pipeline.py`). Every `aws s3` call runs with
+`config/aws.config` (raised retries for dropped multipart parts), and
+`catalog/_verify.py::find_incomplete_collections()` compares each remote object's size with
+the local file.
 
-PMTiles are built by tylertoo (`catalog/_pmtiles.py::build_pmtiles()`, z0-z11, finest
-level verbatim) beside each parquet right before every `portolan add --pmtiles --force`,
-which registers the fresh archive without re-tiling it.
+PMTiles are built by tylertoo (`catalog/_pmtiles.py::tile_parquet()`, z0-z11, density drop,
+thinning and visibility filters off, no tile size limit, `bounded` memory profile) beside
+each parquet right before every `portolan add --pmtiles --force`, which registers the fresh
+archive without re-tiling it. `global_/_points.py::build_points()` also writes
+`admin{N}_points.pmtiles` (maximum inscribed circle centers, all attribute columns),
+registered as asset `admin{N}_points`.
 
 ### Change detection
 
@@ -270,7 +276,8 @@ Each tree fingerprints only its own immediate upstream input, independently:
   changed since the last run.
 - **`global/`**: fingerprints the combined set of contributing `matched/` parquets,
   stored in `global/.state/fingerprint.json` (`global_/_state.py::combined_fingerprint()`).
-  A rebuild is also forced if the expected output parquets or PMTiles are missing.
+  A rebuild is also forced if the expected output parquets or PMTiles (including
+  `admin{N}_points.pmtiles`) are missing.
 
 This means a no-op re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
 and all downstream `topo_tools` recomputation for every stage.
