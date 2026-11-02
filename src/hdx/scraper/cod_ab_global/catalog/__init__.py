@@ -4,7 +4,7 @@ Tree-walking, fingerprinting, catalog-metadata, `portolan` subprocess helpers.
 """
 
 from ._json import read_catalog, read_json_state, write_json_state
-from ._pmtiles import build_pmtiles
+from ._pmtiles import build_pmtiles, tile_parquet
 from ._service import CATALOG_TITLE, _ensure_root_catalog
 from ._subprocess import _portolan, portolan_add
 from ._top import (
@@ -49,6 +49,7 @@ __all__ = [
     "remove_stale_versions",
     "repair_collections",
     "sync_tree_deletions",
+    "tile_parquet",
     "write_json_state",
     "write_top_catalog",
 ]

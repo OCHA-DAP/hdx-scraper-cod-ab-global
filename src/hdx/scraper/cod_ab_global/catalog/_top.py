@@ -1,8 +1,11 @@
 """Write and push the root STAC catalog linking the four sibling trees."""
 
 import json
+import os
 from pathlib import Path
 from subprocess import run as _run
+
+from hdx.scraper.cod_ab_global.config import AWS_CONFIG_PATH
 
 from ._service import CATALOG_TITLE
 
@@ -12,6 +15,12 @@ _TREE_TITLES = {
     "matched": "Matched",
     "global": "Global",
 }
+
+
+def _aws(args: list[str]) -> None:
+    """Run the AWS CLI with retries raised for dropped multipart parts."""
+    env = {**os.environ, "AWS_CONFIG_FILE": str(AWS_CONFIG_PATH)}
+    _run(["aws", *args], env=env, check=True)
 
 
 def write_top_catalog(work_dir: Path, tree_names: list[str]) -> None:
@@ -44,24 +53,21 @@ def write_top_catalog(work_dir: Path, tree_names: list[str]) -> None:
 
 def push_top_catalog(work_dir: Path, remote: str) -> None:
     """Upload work_dir/catalog.json to the root of remote."""
-    _run(
+    _aws(
         [
-            "aws",
             "s3",
             "cp",
             str(work_dir / "catalog.json"),
             f"{remote.rstrip('/')}/catalog.json",
-        ],
-        check=True,
+        ]
     )
 
 
 def sync_tree_deletions(catalog_dir: Path, remote: str) -> None:
     """Mirror-delete remote objects for services `portolan rm` removed locally."""
     # portolan-cli#753: portolan push never deletes remote objects.
-    _run(
+    _aws(
         [
-            "aws",
             "s3",
             "sync",
             str(catalog_dir),
@@ -75,16 +81,14 @@ def sync_tree_deletions(catalog_dir: Path, remote: str) -> None:
             ".state/*",
             "--exclude",
             "*/.state/*",
-        ],
-        check=True,
+        ]
     )
 
 
 def _push_catalog_files(work_dir: Path, remote: str) -> None:
     """Sync intermediate catalog.json/README.md; portolan push skips those."""
-    _run(
+    _aws(
         [
-            "aws",
             "s3",
             "sync",
             str(work_dir),
@@ -103,6 +107,5 @@ def _push_catalog_files(work_dir: Path, remote: str) -> None:
             "*/*/README.md",
             "--exclude",
             "*/*/*/*",
-        ],
-        check=True,
+        ]
     )
