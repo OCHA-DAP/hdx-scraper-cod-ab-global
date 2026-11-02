@@ -8,9 +8,8 @@ from ._pmtiles import build_pmtiles, tile_parquet
 from ._service import CATALOG_TITLE, _ensure_root_catalog
 from ._subprocess import _portolan, portolan_add
 from ._top import (
-    _push_catalog_files,
     push_top_catalog,
-    sync_tree_deletions,
+    sync_tree,
     write_top_catalog,
 )
 from ._tree import (
@@ -22,10 +21,8 @@ from ._tree import (
     remove_stale_versions,
 )
 from ._verify import (
-    find_incomplete_collections,
     normalize_asset_hrefs,
     remove_nested_index_versions,
-    repair_collections,
 )
 
 __all__ = [
@@ -33,12 +30,10 @@ __all__ = [
     "CATALOG_TITLE",
     "_ensure_root_catalog",
     "_portolan",
-    "_push_catalog_files",
     "admin_layer_pattern",
     "admin_layers",
     "build_pmtiles",
     "file_fingerprint",
-    "find_incomplete_collections",
     "iter_version_dirs",
     "normalize_asset_hrefs",
     "portolan_add",
@@ -47,8 +42,7 @@ __all__ = [
     "read_json_state",
     "remove_nested_index_versions",
     "remove_stale_versions",
-    "repair_collections",
-    "sync_tree_deletions",
+    "sync_tree",
     "tile_parquet",
     "write_json_state",
     "write_top_catalog",

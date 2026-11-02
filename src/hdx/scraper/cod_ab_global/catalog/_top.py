@@ -63,49 +63,9 @@ def push_top_catalog(work_dir: Path, remote: str) -> None:
     )
 
 
-def sync_tree_deletions(catalog_dir: Path, remote: str) -> None:
-    """Mirror-delete remote objects for services `portolan rm` removed locally."""
-    # portolan-cli#753: portolan push never deletes remote objects.
-    _aws(
-        [
-            "s3",
-            "sync",
-            str(catalog_dir),
-            remote.rstrip("/"),
-            "--delete",
-            "--exclude",
-            ".portolan/*",
-            "--exclude",
-            "*/.portolan/*",
-            "--exclude",
-            ".state/*",
-            "--exclude",
-            "*/.state/*",
-        ]
-    )
-
-
-def _push_catalog_files(work_dir: Path, remote: str) -> None:
-    """Sync intermediate catalog.json/README.md; portolan push skips those."""
-    _aws(
-        [
-            "s3",
-            "sync",
-            str(work_dir),
-            remote.rstrip("/"),
-            "--exclude",
-            "*",
-            "--include",
-            "catalog.json",
-            "--include",
-            "*/catalog.json",
-            "--include",
-            "*/*/catalog.json",
-            "--include",
-            "*/README.md",
-            "--include",
-            "*/*/README.md",
-            "--exclude",
-            "*/*/*/*",
-        ]
-    )
+def sync_tree(catalog_dir: Path, remote: str) -> None:
+    """Mirror catalog_dir to remote, uploading versions.json last."""
+    hidden = ["--exclude", ".*", "--exclude", "*/.*"]
+    base = ["s3", "sync", str(catalog_dir), remote.rstrip("/"), "--no-progress"]
+    _aws([*base, *hidden, "--exclude", "*versions.json"])
+    _aws([*base, *hidden, "--delete"])

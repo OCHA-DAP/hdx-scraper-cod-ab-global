@@ -250,10 +250,10 @@ the leading root segment changes when following one layer across variants. Each 
 trees is its own independent portolan catalog (own `.portolan/config.yaml`,
 `catalog.json`), initialised via `catalog/_service.py::_ensure_root_catalog()`. Push happens once
 per tree, to its own `{SOURCECOOP_REMOTE}/{original,extended,matched,global}/` subpath,
-after all four stages complete (`_pipeline.py`). Every `aws s3` call runs with
-`config/aws.config` (raised retries for dropped multipart parts), and
-`catalog/_verify.py::find_incomplete_collections()` compares each remote object's size with
-the local file.
+after all four stages complete (`_pipeline.py`), with `aws s3 sync` alone
+(`catalog/_top.py::sync_tree()`, `config/aws.config` for per-part multipart retries):
+one pass for everything but `versions.json`, then a `--delete` pass that adds
+`versions.json`, so remote orphans left by `portolan rm` are removed.
 
 PMTiles are built by tylertoo (`catalog/_pmtiles.py::tile_parquet()`, z0-z11, density drop,
 thinning and visibility filters off, no tile size limit, `bounded` memory profile) beside
@@ -297,9 +297,6 @@ and all downstream `topo_tools` recomputation for every stage.
   the catalog root), hence `admin{N}/admin{N}.parquet` rather than a flat `admin{N}.parquet`
 - `portolan add` regenerates `catalog.json`/`collection.json` on every run for the
   services it touches, custom fields are re-applied afterwards
-- `catalog/_top.py::_push_catalog_files()` syncs intermediate `catalog.json`/`README.md` at
-  the root, country, and service levels to S3, since `portolan push` only handles leaf
-  collections (portolan-cli#552, tracked upstream, not yet fixed)
 
 ### Known upstream issues (workarounds applied locally)
 
@@ -310,9 +307,6 @@ and all downstream `topo_tools` recomputation for every stage.
 - **[portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)**
   (open): no native freshness-aware resume in `extract_arcgis_catalog()`. Workaround:
   the `lastEditDate` fingerprinting described above, done entirely in this repo's code.
-- **[portolan-sdi/portolan-cli#552](https://github.com/portolan-sdi/portolan-cli/issues/552)**
-  (open): `portolan push` skips intermediate `catalog.json` for nested collections.
-  Workaround: `catalog/_top.py::_push_catalog_files()`.
 - **[geoparquet/geoparquet-io#501](https://github.com/geoparquet/geoparquet-io/issues/501)**
   (open): GDAL misdetects ESRIJSON as GeoJSON when a response's `features[]` array
   precedes the ESRIJSON-identifying keys, common on ArcGIS Hosted FeatureServer
@@ -333,12 +327,6 @@ and all downstream `topo_tools` recomputation for every stage.
   `.portolan/config.yaml` (`catalog/_service.py::_write_catalog_config()`), which stops the
   rewrite but also disables portolan's own PTL-DAT-006/007 row-order checks for this
   catalog.
-- **[portolan-sdi/portolan-cli#753](https://github.com/portolan-sdi/portolan-cli/issues/753)**
-  (open): `portolan push` never deletes remote objects orphaned by a local `portolan rm`,
-  leaving removed ArcGIS services live on source.coop forever. Workaround:
-  `_push.py::push_all()` calls `catalog/_top.py::sync_tree_deletions()`
-  (`aws s3 sync --delete`) after each tree's push; remove this call once `#753` ships a
-  native flag and this repo's `portolan-cli` pin is bumped.
 - **portolan-cli 0.8.0** (not yet filed upstream): `portolan add <subpath>` writes asset
   `href`s relative to `<subpath>` instead of the catalog root, but `push` always resolves
   `href` from the catalog root, breaking every collection added this way (used by
