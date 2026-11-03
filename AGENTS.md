@@ -322,12 +322,6 @@ and all downstream `topo_tools` recomputation for every stage.
   `.portolan/config.yaml` (`catalog/_service.py::_write_catalog_config()`), which stops the
   rewrite but also disables portolan's own PTL-DAT-006/007 row-order checks for this
   catalog.
-- **portolan-cli 0.8.0** (not yet filed upstream, 0.9.0 writes catalog-root-relative hrefs):
-  `portolan add <subpath>` writes asset `href`s relative to `<subpath>` instead of the catalog root, but `push` always resolves
-  `href` from the catalog root, breaking every collection added this way (used by
-  `original/`, `extended/`, `matched/`, since they call `portolan_add(catalog_dir, f"{iso3}/{version}/", workers)`;
-  `global/` is unaffected, it calls `add .` from the catalog root). Workaround:
-  `catalog/_verify.py::normalize_asset_hrefs()`, run before every push in `_push.py`.
 - **portolan-cli 0.9.0** (not yet filed upstream): `extract_arcgis_catalog()` writes an
   index-format `versions.json` in each `original/<iso3>/<version>/`, and `push`'s
   `discover_collections()` treats it as a collection whose metadata-only sync re-uploads
