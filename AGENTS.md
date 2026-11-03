@@ -257,8 +257,8 @@ one pass for everything but `versions.json`, then a `--delete` pass that adds
 
 PMTiles are built by tylertoo (`catalog/_pmtiles.py::tile_parquet()`, z0-z11, density drop,
 thinning and visibility filters off, no tile size limit, `bounded` memory profile) beside
-each parquet right before every `portolan add --pmtiles --force`, which registers the fresh
-archive without re-tiling it. `global_/_points.py::build_points()` also writes
+each parquet right before every `portolan add --force`, which registers the sibling archive
+as it is (never `--pmtiles`, which re-tiles any archive older than its parquet with tippecanoe). `global_/_points.py::build_points()` also writes
 `admin{N}_points.pmtiles` (maximum inscribed circle centers, all attribute columns),
 registered as asset `admin{N}_points`.
 
@@ -301,24 +301,19 @@ and all downstream `topo_tools` recomputation for every stage.
 ### Known upstream issues (workarounds applied locally)
 
 - **[portolan-sdi/portolan-cli#855](https://github.com/portolan-sdi/portolan-cli/issues/855)**
-  (open): `discover_layers()` has no `token` param, unlike `discover_services()`, breaking
-  discovery against token-gated ArcGIS servers. Workaround: `original/_patches.py`
-  monkeypatches `portolan_cli.extract.arcgis.discovery._fetch_json` to inject the token.
+  (closed, 0.9.0): `discover_layers()` takes the token through `ArcGISClient`, no workaround
+  needed.
 - **[portolan-sdi/portolan-cli#546](https://github.com/portolan-sdi/portolan-cli/issues/546)**
   (open): no native freshness-aware resume in `extract_arcgis_catalog()`. Workaround:
   the `lastEditDate` fingerprinting described above, done entirely in this repo's code.
 - **[geoparquet/geoparquet-io#501](https://github.com/geoparquet/geoparquet-io/issues/501)**
-  (open): GDAL misdetects ESRIJSON as GeoJSON when a response's `features[]` array
-  precedes the ESRIJSON-identifying keys, common on ArcGIS Hosted FeatureServer
-  responses. Workaround: `original/_patches.py` monkeypatches
-  `geoparquet_io.core.arcgis._esrijson_page_to_table` to reorder those keys to the front
-  before GDAL sees the payload.
+  (closed, 1.7.0): ESRIJSON pages are reordered before GDAL reads them, no workaround needed.
 - **[portolan-sdi/portolan-cli#545](https://github.com/portolan-sdi/portolan-cli/issues/545)**
   (closed): native auth support (`ExtractionOptions.token`) landed, no workaround needed.
 - **[geoparquet/geoparquet-io#786](https://github.com/geoparquet/geoparquet-io/pull/786)**
   (merged in 1.5.0): `esriFieldTypeBigInteger`/`DateOnly`/`TimeOnly` now map correctly in
-  `TYPE_MAPPING`; the monkeypatch in `original/_patches.py` is removed.
-- **portolan-cli 0.8.0** `add` step (not yet filed upstream): `_needs_spatial_rewrite` in
+  `TYPE_MAPPING`, no workaround needed.
+- **portolan-cli 0.9.0** `add` step (not yet filed upstream): `_needs_spatial_rewrite` in
   `preparation.py` only recognizes the GeoParquet 1.x `covering` struct column, not
   GeoParquet 2.0's native bbox support. Every `portolan add` call silently reconverts a 2.0
   file lacking `covering` back to 1.1 via `gpio.convert(...).write(...)` with no version
@@ -327,17 +322,22 @@ and all downstream `topo_tools` recomputation for every stage.
   `.portolan/config.yaml` (`catalog/_service.py::_write_catalog_config()`), which stops the
   rewrite but also disables portolan's own PTL-DAT-006/007 row-order checks for this
   catalog.
-- **portolan-cli 0.8.0** (not yet filed upstream): `portolan add <subpath>` writes asset
-  `href`s relative to `<subpath>` instead of the catalog root, but `push` always resolves
+- **portolan-cli 0.8.0** (not yet filed upstream, 0.9.0 writes catalog-root-relative hrefs):
+  `portolan add <subpath>` writes asset `href`s relative to `<subpath>` instead of the catalog root, but `push` always resolves
   `href` from the catalog root, breaking every collection added this way (used by
   `original/`, `extended/`, `matched/`, since they call `portolan_add(catalog_dir, f"{iso3}/{version}/", workers)`;
   `global/` is unaffected, it calls `add .` from the catalog root). Workaround:
   `catalog/_verify.py::normalize_asset_hrefs()`, run before every push in `_push.py`.
-- **portolan-cli 0.8.0** (not yet filed upstream): `extract_arcgis_catalog()` writes an
+- **portolan-cli 0.9.0** (not yet filed upstream): `extract_arcgis_catalog()` writes an
   index-format `versions.json` in each `original/<iso3>/<version>/`, and `push`'s
   `discover_collections()` treats it as a collection whose metadata-only sync re-uploads
   every file below it on every push. Workaround:
   `catalog/_verify.py::remove_nested_index_versions()`, run before every push in `_push.py`.
+- **portolan-cli 0.9.0** (not yet filed upstream): `add` fills the source `url` and zoom range
+  of extract-written styles (`styles/default.json`) only for PMTiles it tiled itself, so
+  styles beside prebuilt archives get no `url`. It also fills `minzoom`/`maxzoom` only when
+  absent, never correcting stale values. Workaround: `catalog/_pmtiles.py::tile_parquet()`
+  calls portolan's own `complete_style_sources()` with the archive's header zoom range.
 
 ### HTTP timeout for large layers
 

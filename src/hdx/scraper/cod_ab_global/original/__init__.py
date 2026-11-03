@@ -25,7 +25,6 @@ from hdx.scraper.cod_ab_global.utils import (
     list_services,
 )
 
-from . import _patches
 from ._extract import extract_service, remove_stale_services, service_to_path
 from ._metadata import enrich_service_catalog
 
@@ -39,7 +38,6 @@ def run(original_dir: Path) -> None:
     Push is handled by __main__.py after all stages complete.
     """
     token = generate_token()
-    _patches.set_token(token)
     services = list_services(token)
     logger.info("Found %d COD-AB services", len(services))
     metadata = fetch_metadata_table(token)
