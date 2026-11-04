@@ -177,7 +177,7 @@ ArcGIS Server (ESRIJSON)
 
 - **GDAL Integration**: Uses `gdal vector` CLI commands for format conversions, field type manipulation, and File Geodatabase creation
 - **Retry Logic**: `tenacity` library with configurable attempts/waits for ArcGIS API calls
-- **Parquet Everywhere**: Internal format is GeoParquet (ZSTD compression, level 15)
+- **Parquet Everywhere**: Internal format is GeoParquet 2.0, labelled `OGC:CRS84`, rows sorted by P-code then name (`extended/_write.py::write_gpq2()`, ZSTD level 22)
 - **HTTP/2**: Uses `httpx[http2]` for faster parallel downloads
 - **Version Handling**: Metadata table drives which country versions to process
 - **Where Filters**: Country-specific SQL filters in `config.where_filter` to exclude problematic features
