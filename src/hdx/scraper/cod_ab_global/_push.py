@@ -16,8 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 def _push_tree(catalog_dir: Path, remote: str) -> None:
-    """Drop nested index versions.json files, then mirror one tree to remote."""
+    """Drop nested index versions.json files, repair links, mirror tree to remote."""
     remove_nested_index_versions(catalog_dir)
+    try:
+        # `portolan add` leaves service catalogs self-rooted with no parent link.
+        _portolan(["check", "--fix", "--no-data"], cwd=catalog_dir)
+    except CalledProcessError:
+        logger.warning("portolan fix left issues for %s", catalog_dir.name)
     sync_tree(catalog_dir, remote)
     try:
         _portolan(["check", "--verbose"], cwd=catalog_dir)

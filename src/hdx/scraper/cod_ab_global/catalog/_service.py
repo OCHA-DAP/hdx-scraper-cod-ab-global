@@ -27,6 +27,9 @@ def _write_catalog_metadata(catalog_dir: Path) -> None:
             contact:
               name: HDX Data Systems Team
               email: hdx@un.org
+            providers:
+              - name: UN OCHA Information Systems Section (ISS)
+                roles: [producer]
             attribution: UN OCHA Information Systems Section (ISS)
             source_url: {ARCGIS_SERVICES_URL}
         """)
