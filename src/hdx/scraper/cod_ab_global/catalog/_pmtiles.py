@@ -4,6 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import tylertoo
+from portolan_cli.metadata.pmtiles import extract_pmtiles_metadata
+from portolan_cli.viz.style import complete_style_sources
 
 MAX_ZOOM = 11
 
@@ -32,6 +34,11 @@ def tile_parquet(parquet_path: Path, pmtiles_path: Path, layer_name: str) -> Non
             layer_name=layer_name,
             tile_size_limit=None,
         )
+    # `portolan add` only completes extract-written styles for archives it tiled itself.
+    meta = extract_pmtiles_metadata(pmtiles_path)
+    complete_style_sources(
+        pmtiles_path.parent, pmtiles_path.name, meta.min_zoom, meta.max_zoom
+    )
 
 
 def build_pmtiles(collections_dir: Path) -> None:

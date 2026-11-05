@@ -19,7 +19,7 @@ def build_catalog(global_dir: Path) -> None:
         build_pmtiles(global_dir)
         build_points(global_dir)
         _portolan(
-            ["add", ".", "--workers", workers, "--pmtiles", "--force"],
+            ["add", ".", "--workers", workers, "--force"],
             cwd=global_dir,
         )
     except (CalledProcessError, RuntimeError, ValueError, MemoryError):

@@ -6,7 +6,6 @@ from subprocess import CalledProcessError
 
 from .catalog import (
     _portolan,
-    normalize_asset_hrefs,
     push_top_catalog,
     remove_nested_index_versions,
     sync_tree,
@@ -17,9 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def _push_tree(catalog_dir: Path, remote: str) -> None:
-    """Fix local versions.json files, then mirror one tree to remote."""
+    """Drop nested index versions.json files, then mirror one tree to remote."""
     remove_nested_index_versions(catalog_dir)
-    normalize_asset_hrefs(catalog_dir)
     sync_tree(catalog_dir, remote)
     try:
         _portolan(["check", "--verbose"], cwd=catalog_dir)

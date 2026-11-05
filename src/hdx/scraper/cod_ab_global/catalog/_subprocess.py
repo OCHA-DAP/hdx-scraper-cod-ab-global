@@ -21,7 +21,7 @@ def portolan_add(
     cwd: Path, rel_path: str, workers: str, *, datetime_: str | None = None
 ) -> None:
     """Run `portolan add` for one service dir, logging (not raising) on failure."""
-    args = ["add", rel_path, "--workers", workers, "--pmtiles", "--force"]
+    args = ["add", rel_path, "--workers", workers, "--force"]
     if datetime_:
         args += ["--datetime", datetime_]
     try:

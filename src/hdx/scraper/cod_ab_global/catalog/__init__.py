@@ -20,10 +20,7 @@ from ._tree import (
     iter_version_dirs,
     remove_stale_versions,
 )
-from ._verify import (
-    normalize_asset_hrefs,
-    remove_nested_index_versions,
-)
+from ._verify import remove_nested_index_versions
 
 __all__ = [
     "ADM_SUFFIXES",
@@ -35,7 +32,6 @@ __all__ = [
     "build_pmtiles",
     "file_fingerprint",
     "iter_version_dirs",
-    "normalize_asset_hrefs",
     "portolan_add",
     "push_top_catalog",
     "read_catalog",
