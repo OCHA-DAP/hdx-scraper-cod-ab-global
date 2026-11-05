@@ -327,6 +327,9 @@ and all downstream `topo_tools` recomputation for every stage.
   `discover_collections()` treats it as a collection whose metadata-only sync re-uploads
   every file below it on every push. Workaround:
   `catalog/_verify.py::remove_nested_index_versions()`, run before every push in `_push.py`.
+- **portolan-cli 0.9.0** (not yet filed upstream): service `catalog.json` files come out
+  self-rooted with no `parent` link (PTL-LNK-001/006). Workaround: `_push.py` runs
+  `portolan check --fix --no-data` on each tree before syncing it.
 - **portolan-cli 0.9.0** (not yet filed upstream): `add` fills the source `url` and zoom range
   of extract-written styles (`styles/default.json`) only for PMTiles it tiled itself, so
   styles beside prebuilt archives get no `url`. It also fills `minzoom`/`maxzoom` only when
