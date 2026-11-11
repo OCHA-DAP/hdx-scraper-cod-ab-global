@@ -27,6 +27,7 @@ def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
     dataset.add_tag("geodata")
     if run_version == "historic":
         del dataset["cod_level"]
+        dataset.set_expected_update_frequency("As needed")
     dataset.set_time_period(start_date, end_date)
     return dataset
 
