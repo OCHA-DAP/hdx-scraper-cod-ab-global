@@ -42,8 +42,6 @@ def add_metadata_resource(
 def dataset_create_in_hdx(dataset: Dataset, info: dict) -> None:
     """Create a dataset in HDX."""
     dataset.create_in_hdx(
-        # package_revise keeps omitted fields, so a dropped cod_level must be deleted
-        keys_to_delete=() if "cod_level" in dataset else ("cod_level",),
         remove_additional_resources=False,
         match_resource_order=False,
         updated_by_script=UPDATED_BY_SCRIPT,
