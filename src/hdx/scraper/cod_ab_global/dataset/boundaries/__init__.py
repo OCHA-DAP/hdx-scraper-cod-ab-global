@@ -24,6 +24,7 @@ def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
     dataset_info = get_dataset_info(run_version)
     dataset_info["notes"] = get_notes(layer_count, run_version)
     dataset = base_dataset(dataset_info)
+    dataset.add_tag("geodata")
     if run_version == "historic":
         del dataset["cod_level"]
     dataset.set_time_period(start_date, end_date)
