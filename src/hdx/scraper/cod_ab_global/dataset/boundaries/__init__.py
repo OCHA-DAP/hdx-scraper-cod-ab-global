@@ -34,7 +34,7 @@ def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
 
 def create_boundaries_dataset(output_dir: Path, run_version: str, info: dict) -> None:
     """Create a dataset for the world."""
-    for stage in ["matched", "original", "extended"]:
+    for stage in ["matched", "original"]:
         dataset = _initialize_dataset(output_dir, run_version)
         resource = get_resource(run_version, stage)
         dataset = add_resources(output_dir, dataset, resource)

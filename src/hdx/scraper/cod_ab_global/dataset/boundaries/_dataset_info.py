@@ -25,11 +25,11 @@ def get_dataset_info(run_version: str) -> dict:
                 " into this global dataset."
             ),
             (
-                "In the extended and edge-matched resources, lower levels are"
+                "In the edge-matched resource, lower levels are"
                 " filled in with higher ones if they don't exist. Example:"
                 " Admin 2 is used to fill in Admin 3 and 4 if they don't"
                 " exist. Also, only layers with full coverage are used for"
-                " these two resources. Example: if Admin 3 only covers part"
+                " this resource. Example: if Admin 3 only covers part"
                 " of a location, Admin 2 is used instead."
             ),
         ]
@@ -57,12 +57,6 @@ def get_resource(run_version: str, stage: str) -> dict:
             "description": (
                 "Original geometry (with gaps and overlaps), "
                 f"{run_version} versions only."
-            ),
-        },
-        "extended": {
-            "name": f"global_admin_boundaries_extended_{run_version}.gdb.zip",
-            "description": (
-                f"Extended geometry (pre-edge-matching), {run_version} versions only."
             ),
         },
     }

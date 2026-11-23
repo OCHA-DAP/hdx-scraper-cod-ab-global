@@ -1,4 +1,4 @@
-"""Build (and publish) HDX resources from original/, extended/, and matched/.
+"""Build (and publish) HDX resources from original/ and matched/.
 
 Build state and push state are tracked independently; see state/.
 """
@@ -10,20 +10,17 @@ from ._build import build_boundaries, build_metadata_resource, build_pcodes_reso
 from ._push import push as _push
 
 
-def run(  # noqa: PLR0913
+def run(
     original_dir: Path,
-    extended_dir: Path,
     matched_dir: Path,
     work_dir: Path,
     output_dir: Path,
     *,
     push_to_hdx: bool = False,
 ) -> None:
-    """Build all HDX-ready resources from original/, extended/, and matched/."""
+    """Build all HDX-ready resources from original/ and matched/."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    boundary_results = build_boundaries(
-        original_dir, extended_dir, matched_dir, work_dir, output_dir
-    )
+    boundary_results = build_boundaries(original_dir, matched_dir, work_dir, output_dir)
     pcodes_result = build_pcodes_resource(original_dir, work_dir, output_dir)
     metadata_result = build_metadata_resource(original_dir, work_dir, output_dir)
 

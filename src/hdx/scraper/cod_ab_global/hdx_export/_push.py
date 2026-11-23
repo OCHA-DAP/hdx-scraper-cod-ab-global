@@ -12,7 +12,7 @@ from ._build import RUN_VERSIONS
 
 logger = logging.getLogger(__name__)
 
-_STAGES = ("original", "extended", "matched")
+_STAGES = ("original", "matched")
 
 
 def push(  # noqa: PLR0913

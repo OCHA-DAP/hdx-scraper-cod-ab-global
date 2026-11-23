@@ -8,7 +8,10 @@ dataset_info = {
         "parent p-codes, and reference dates for the world (where available). "
         "Latin names are used where available."
         "\n  \n  "
-        "For actual boundaries: [Global Subnational Administrative Boundaries](https://data.humdata.org/dataset/cod-ab-global)"
+        "For the boundaries these P-codes belong to, start at "
+        "[Global - Subnational Administrative Boundaries]"
+        "(https://data.humdata.org/dataset/cod-ab-global), "
+        "which also links to country and historic boundaries."
     ),
     "methodology_other": (
         "P-codes taken from the latest administrative boundary layers available on the "

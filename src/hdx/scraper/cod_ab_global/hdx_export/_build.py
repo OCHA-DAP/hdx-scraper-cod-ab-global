@@ -16,7 +16,6 @@ RUN_VERSIONS = ("latest", "historic")
 
 def build_boundaries(
     original_dir: Path,
-    extended_dir: Path,
     matched_dir: Path,
     work_dir: Path,
     output_dir: Path,
@@ -25,7 +24,7 @@ def build_boundaries(
 
     Returns {(stage, run_version): (rebuilt, fingerprint)}.
     """
-    roots = {"original": original_dir, "extended": extended_dir, "matched": matched_dir}
+    roots = {"original": original_dir, "matched": matched_dir}
     results: dict[tuple[str, str], tuple[bool, dict]] = {}
     for run_version in RUN_VERSIONS:
         for stage, root_dir in roots.items():
