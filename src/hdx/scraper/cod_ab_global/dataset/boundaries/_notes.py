@@ -32,7 +32,6 @@ def get_notes(admin_count: int, run_version: str) -> str:
             f"use {_HUB}."
         )
         related = [
-            f"{_HUB}: current boundaries for all countries and territories.",
             f"{_COUNTRY}: for boundaries of a single country or territory.",
             f"{_PCODES}: P-codes and names as CSV.",
         ]
@@ -52,7 +51,7 @@ def get_notes(admin_count: int, run_version: str) -> str:
             "source. There will be gaps and overlaps at the international border. "
             "Recommended if maintaining the integrity of the initial source is"
             " important.\n"
-            "- **Metadata**: a table of the sources used."
+            "- **Metadata**: A table of the sources used."
         ),
         "**Related datasets**",
         "\n".join(f"- {item}" for item in related),
