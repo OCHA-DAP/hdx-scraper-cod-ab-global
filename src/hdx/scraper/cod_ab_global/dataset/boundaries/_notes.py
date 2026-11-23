@@ -2,48 +2,58 @@
 
 from ._dataset_info import _BREAK
 
+_HDX = "https://data.humdata.org/dataset"
+_HUB = f"[Global - Subnational Administrative Boundaries]({_HDX}/cod-ab-global)"
+_HISTORIC = (
+    "[Global - Subnational Administrative Boundaries (Historic)]"
+    f"({_HDX}/cod-ab-global-historic)"
+)
+_COUNTRY = f"[Country COD-AB datasets]({_HDX}/?cod_level=cod-ab)"
+_PCODES = f"[Global P-code List]({_HDX}/global-pcodes)"
+
 
 def get_notes(admin_count: int, run_version: str) -> str:
     """Get notes for a dataset."""
-    other_link = (
-        "[historic boundaries](https://data.humdata.org/dataset/cod-ab-global-historic)"
-        if run_version == "latest"
-        else "[latest boundaries](https://data.humdata.org/dataset/cod-ab-global)"
-    )
+    if run_version == "latest":
+        intro = (
+            f"Administrative level 1-4 boundaries for {admin_count} "
+            "countries / territories, using the latest version for each."
+        )
+        related = [
+            f"{_COUNTRY}: for boundaries of a single country or territory.",
+            f"{_PCODES}: P-codes and names as CSV, for data collection tools "
+            "such as ODK / Kobo.",
+            f"{_HISTORIC}: past versions of boundaries for each country or territory.",
+        ]
+    else:
+        intro = (
+            f"Past versions of administrative level 1-4 boundaries for "
+            f"{admin_count} countries / territories. For current boundaries, "
+            f"use {_HUB}."
+        )
+        related = [
+            f"{_COUNTRY}: for boundaries of a single country or territory.",
+            f"{_PCODES}: P-codes and names as CSV.",
+        ]
     paragraphs = [
+        intro,
         (
-            f"Global administrative level 1-4 boundaries (COD-AB) dataset for "
-            f"{admin_count} countries / territories, {run_version} versions."
+            "This dataset combines the "
+            f"[country COD-AB datasets]({_HDX}/?cod_level=cod-ab) and contains:"
         ),
         (
-            "This is an aggregation of "
-            "[subnational administrative boundaries](https://data.humdata.org/dataset/?cod_level=cod-enhanced&res_format=GeoJSON)"
-            " available in 3 variations:"
-        ),
-        (
-            "**Edge-Matched**: Subnational boundaries are aligned to fit international"
-            " boundaries. This process results in simplification at the international"
-            " border, but gaps and overlaps are eliminated. The internal resolution of"
-            " each subnational boundary layer is not modified by this process."
-            " Recommended to use for most use cases."
-        ),
-        (
-            "**Original**: Subnational boundaries are unmodified from their original "
+            "- **Edge-Matched**: Subnational boundaries are aligned to fit"
+            " international boundaries. This process results in simplification at"
+            " the international border, but gaps and overlaps are eliminated. The"
+            " internal resolution of each subnational boundary layer is not modified"
+            " by this process. Recommended to use for most use cases.\n"
+            "- **Original**: Subnational boundaries are unmodified from their original "
             "source. There will be gaps and overlaps at the international border. "
             "Recommended if maintaining the integrity of the initial source is"
-            " important."
+            " important.\n"
+            "- **Metadata**: A table of the sources used."
         ),
-        (
-            "**Extended**: This is an intermediate step in the process before"
-            " edge-matching. Recommended for organizations with specific international"
-            " boundary needs."
-        ),
-        "Metadata about sources used is also available as a table.",
-        f"A version of this dataset is also available with {other_link}.",
+        "**Related datasets**",
+        "\n".join(f"- {item}" for item in related),
     ]
-    if run_version == "latest":
-        paragraphs.append(
-            "For a list of P-codes for use in data collection such as ODK / Kobo, see "
-            "[Global P-code List](https://data.humdata.org/dataset/global-pcodes)"
-        )
     return _BREAK.join(paragraphs)

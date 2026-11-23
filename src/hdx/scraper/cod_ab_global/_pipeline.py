@@ -67,7 +67,6 @@ def main() -> None:
         )
     hdx_export_run(
         original_dir,
-        extended_dir,
         matched_dir,
         work_dir,
         hdx_export_output_dir,

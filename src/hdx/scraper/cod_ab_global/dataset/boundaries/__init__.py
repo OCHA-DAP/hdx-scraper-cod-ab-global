@@ -16,13 +16,13 @@ def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
     """Initialize a dataset."""
     df = read_parquet(
         output_dir / f"metadata/global_admin_boundaries_metadata_{run_version}.parquet",
-        columns=["date_valid_on", "date_reviewed"],
+        columns=["country_iso3", "date_valid_on", "date_reviewed"],
     )
     start_date = df[df["date_valid_on"].notna()]["date_valid_on"].min().isoformat()
     end_date = df[df["date_reviewed"].notna()]["date_reviewed"].max().isoformat()
-    layer_count = len(df)
+    country_count = df["country_iso3"].nunique()
     dataset_info = get_dataset_info(run_version)
-    dataset_info["notes"] = get_notes(layer_count, run_version)
+    dataset_info["notes"] = get_notes(country_count, run_version)
     dataset = base_dataset(dataset_info)
     dataset.add_tag("geodata")
     if run_version == "historic":
@@ -34,7 +34,7 @@ def _initialize_dataset(output_dir: Path, run_version: str) -> Dataset:
 
 def create_boundaries_dataset(output_dir: Path, run_version: str, info: dict) -> None:
     """Create a dataset for the world."""
-    for stage in ["matched", "original", "extended"]:
+    for stage in ["matched", "original"]:
         dataset = _initialize_dataset(output_dir, run_version)
         resource = get_resource(run_version, stage)
         dataset = add_resources(output_dir, dataset, resource)
