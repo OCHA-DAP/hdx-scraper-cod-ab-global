@@ -13,7 +13,7 @@ edge-extended and edge-matched global variants, and publishes the results to two
   [global-pcodes](https://data.humdata.org/dataset/global-pcodes)
 - **source.coop**: `s3://us-west-2.opendata.source.coop/hdx/cod-ab/`, as four sibling
   [STAC](https://stacspec.org/) catalogs (`original/`, `extended/`, `matched/`, `global/`), one
-  per processing stage. See [CLAUDE.md](CLAUDE.md) for the catalog layout and design notes.
+  per processing stage. See [AGENTS.md](AGENTS.md) for the catalog layout and design notes.
 
 ## Development
 
@@ -57,8 +57,9 @@ The pipeline needs three sets of credentials:
 or equivalently `python -m hdx.scraper.cod_ab_global`.
 
 Pushing to HDX is opt-in: set `HDX_EXPORT_PUSH=true` in addition to the HDX credentials above,
-otherwise the HDX export stage builds locally without writing anything. Pushing to source.coop
-happens whenever AWS credentials are present.
+otherwise the HDX export stage builds locally without writing anything. Every run syncs all
+four trees to source.coop with `aws s3 sync`, so AWS credentials in `.env` mean every run
+publishes. A run is also the update: unchanged ArcGIS services are skipped at every stage.
 
 ### Environment Variables
 
@@ -66,7 +67,7 @@ happens whenever AWS credentials are present.
 | --- | --- | --- |
 | `ARCGIS_USERNAME` / `ARCGIS_PASSWORD` | (none) | ArcGIS Enterprise credentials |
 | `ARCGIS_SERVER` | `https://gis.unocha.org` | ArcGIS Enterprise host |
-| `ISO3_INCLUDE` / `ISO3_EXCLUDE` | (none) | Comma-separated ISO-3 codes to include/exclude, e.g. `AFG,BFA,CAF`; accepts versioned values like `AFG_v01` to pin a specific version |
+| `ISO3_INCLUDE` / `ISO3_EXCLUDE` | (none) | HDX export only: comma-separated ISO-3 codes to include/exclude, e.g. `AFG,BFA,CAF`. `ISO3_EXCLUDE` also accepts versioned values like `AFG_v01` |
 | `SOURCECOOP_REMOTE` | `s3://us-west-2.opendata.source.coop/hdx/cod-ab/` | source.coop push target |
 | `PORTOLAN_WORK_DIR` | (temp dir) | Local work directory for the four sibling catalogs; set to a persistent path for incremental local runs |
 | `PORTOLAN_WORKERS` | up to 8 | Parallel workers for portolan operations |
