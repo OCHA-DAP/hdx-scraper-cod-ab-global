@@ -58,8 +58,9 @@ or equivalently `python -m hdx.scraper.cod_ab_global`.
 
 Pushing to HDX is opt-in: set `HDX_EXPORT_PUSH=true` in addition to the HDX credentials above,
 otherwise the HDX export stage builds locally without writing anything. Every run syncs all
-four trees to source.coop with `aws s3 sync`, so AWS credentials in `.env` mean every run
-publishes. A run is also the update: unchanged ArcGIS services are skipped at every stage.
+four trees to source.coop with `aws s3 sync`, using any AWS credential source. A failed sync,
+including missing credentials, stops the run before the HDX export. With a persistent
+`PORTOLAN_WORK_DIR`, unchanged ArcGIS services are not re-extracted or recomputed.
 
 ### Environment Variables
 
@@ -72,7 +73,7 @@ publishes. A run is also the update: unchanged ArcGIS services are skipped at ev
 | `PORTOLAN_WORK_DIR` | (temp dir) | Local work directory for the four sibling catalogs; set to a persistent path for incremental local runs |
 | `PORTOLAN_WORKERS` | up to 8 | Parallel workers for portolan operations |
 | `HDX_EXPORT_PUSH` | `false` | Set `true` to actually push the HDX export (requires `.hdx_configuration.yaml`) |
-| `HDX_EXPORT_OUTPUT_DIR` | (temp dir under work dir's parent) | Local output directory for the HDX export build |
+| `HDX_EXPORT_OUTPUT_DIR` | `<work dir parent>/hdx_export_build` | Local output directory for the HDX export build |
 
 ### Docker
 

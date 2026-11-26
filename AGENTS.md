@@ -33,7 +33,8 @@ pre-commit install
 ```
 
 ```shell
-uv run task app                      # python run.py, re-launches under uv if needed
+uv run task app                      # runs python run.py
+python run.py                        # re-launches under uv outside a venv
 python -m hdx.scraper.cod_ab_global  # same pipeline
 uv run task ruff                     # ruff check && ruff format
 docker build -t hdx-scraper-cod-ab-global .
@@ -48,9 +49,10 @@ Stages, in order:
 3. `matched.run()`: clip to UN BNDA.
 4. `global_.run()`: cross-country `admin{1..4}` parquet and PMTiles.
 5. `write_top_catalog()`: root `catalog.json`.
-6. `push_all()`: `aws s3 sync` of all four trees to `SOURCECOOP_REMOTE`, on every run, with
-   no credential check. AWS keys in `.env` mean every run publishes. Unchanged files are not
-   re-uploaded.
+6. `push_all()`: `aws s3 sync` of all four trees to `SOURCECOOP_REMOTE`, on every run.
+   Any AWS credential source publishes. A failed sync, including missing credentials, stops
+   the run before the HDX export. `aws s3 sync` skips files whose size and mtime are
+   unchanged. The root `catalog.json` is uploaded every run.
 7. `hdx_export.run()`: builds GDBs and CSVs for `original` and `matched` into
    `HDX_EXPORT_OUTPUT_DIR`. With `HDX_EXPORT_PUSH=true` it pushes each dataset whose data
    fingerprint differs from `../.hdx_export/push_state.json` for the configured site.
@@ -78,7 +80,7 @@ and `~/.useragents.yaml` with a `hdx-scraper-cod-global` key.
 | --- | --- | --- |
 | `ARCGIS_USERNAME` / `ARCGIS_PASSWORD` | (none) | Token for `cod_ab_*` services, which reject anonymous requests |
 | `ARCGIS_SERVER` | `https://gis.unocha.org` | Services are read from `/server/rest/services/Hosted` |
-| `ARCGIS_TIMEOUT` | `60` | HTTP timeout (s) for token and discovery calls |
+| `ARCGIS_TIMEOUT` | `60` | HTTP timeout (s) for discovery and metadata calls. Token generation uses the httpx default and extraction uses 300 |
 | `ARCGIS_EXPIRATION` | `1440` | Token lifetime (min) |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | (none) | `aws s3 sync` to source.coop |
 | `SOURCECOOP_REMOTE` | `s3://us-west-2.opendata.source.coop/hdx/cod-ab/` | Push target |
@@ -107,6 +109,8 @@ affects Extended, Matched and Global but not Original:
 ## Portolan Mirror
 
 The source.coop side is four independent sibling portolan catalogs under one work directory.
+Every stage writes parquet through `extended/_write.py::write_gpq2()`: GeoParquet 2.0,
+`OGC:CRS84`, rows sorted by P-code then name, ZSTD level 22.
 
 ### Four sibling trees
 
@@ -158,7 +162,7 @@ Each tree fingerprints only its own immediate upstream input, independently:
   A rebuild is also forced if the expected output parquets or PMTiles (including
   `admin{N}_points.pmtiles`) are missing.
 
-This means a no-op re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
+A re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
 and all downstream `topo_tools` recomputation for every stage.
 
 ### STAC catalog structure
