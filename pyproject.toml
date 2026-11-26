@@ -29,7 +29,7 @@ dependencies = [
 dev = ["pre-commit", "pytest", "pytest-cov", "ruff", "taskipy"]
 
 [tool.uv]
-# geoparquet-io (via portolan-cli) pins duckdb<1.6; topo-tools needs DuckDB 2.0.
+# geoparquet-io pins duckdb<1.6 and portolan-cli duckdb<2.0.1; topo-tools needs 2.0.
 override-dependencies = ["duckdb>=2.0.0"]
 
 [tool.hatch]

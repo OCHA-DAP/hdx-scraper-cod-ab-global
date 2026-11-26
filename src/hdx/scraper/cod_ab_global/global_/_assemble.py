@@ -12,6 +12,8 @@ from hdx.scraper.cod_ab_global.extended import _write_gpq2
 
 logger = logging.getLogger(__name__)
 
+_SEAM_GAP_M = 0.001
+
 
 def _build_service_select(meta: dict) -> str:
     """Return a SELECT SQL fragment for one service's deepest matched parquet."""
@@ -45,13 +47,18 @@ def assemble_and_clean(
 
         source = tmp_raw
         topo_detect(tmp_raw, tmp_detect, tmp_dir=tmp_path)
-        defects = _count(con, tmp_detect) if tmp_detect.exists() else 0
+        # Wide gaps are real holes in the union (e.g. Botswana), not seam defects.
+        defects = con.execute(
+            f"SELECT count(*) FROM read_parquet('{tmp_detect}') "
+            f"WHERE kind <> 'gap' OR max_width_m <= {_SEAM_GAP_M}"
+        ).fetchall()[0][0]
         if defects:
             logger.warning("Union has %d coverage defects, cleaning", defects)
             topo_clean(
                 tmp_raw, tmp_clean, tmp_path / "adm4_issues.parquet", tmp_dir=tmp_path
             )
             source = tmp_clean
+            logger.info("Cleaned union: %d features", _count(con, tmp_clean))
 
         schema_fill(
             source,
