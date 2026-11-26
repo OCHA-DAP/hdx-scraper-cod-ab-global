@@ -24,7 +24,9 @@ from ._clip import process_service
 logger = logging.getLogger(__name__)
 
 
-def run(extended_dir: Path, matched_dir: Path, catalogs_dir: Path) -> None:
+def run(
+    original_dir: Path, extended_dir: Path, matched_dir: Path, catalogs_dir: Path
+) -> None:
     """Edge-match admin1+ layers from extended/ into matched/."""
     services = enumerate_services(extended_dir)
     if not services:
@@ -61,7 +63,12 @@ def run(extended_dir: Path, matched_dir: Path, catalogs_dir: Path) -> None:
 
         logger.info("Processing matched for %s/%s", iso3, version)
         if not process_service(
-            iso3, version, extended_version_dir, matched_version_dir, bnda_path
+            iso3,
+            version,
+            original_dir / iso3 / version,
+            extended_version_dir,
+            matched_version_dir,
+            bnda_path,
         ):
             logger.warning(
                 "Matched processing failed for %s/%s, will retry next run",

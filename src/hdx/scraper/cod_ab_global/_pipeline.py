@@ -45,7 +45,7 @@ def main() -> None:
 
     original_run(original_dir)
     extended_run(original_dir, extended_dir)
-    matched_run(extended_dir, matched_dir, work_dir)
+    matched_run(original_dir, extended_dir, matched_dir, work_dir)
     global_run(matched_dir, global_dir)
     write_top_catalog(work_dir, list(TREE_NAMES))
 

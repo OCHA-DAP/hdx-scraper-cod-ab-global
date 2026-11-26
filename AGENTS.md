@@ -45,9 +45,10 @@ the update: it re-checks ArcGIS and recomputes only what changed (see Change det
 Stages, in order:
 
 1. `original.run()`: ArcGIS token, service discovery, extraction of changed services.
-2. `extended.run()`: `config.where_filter`, then edge extension and dissolve.
-3. `matched.run()`: clip to UN BNDA.
-4. `global_.run()`: cross-country `admin{1..4}` parquet and PMTiles.
+2. `extended.run()`: `config.where_filter`, then `edge_extend` and `package_polygons`.
+3. `matched.run()`: `edge_mosaic` into UN BNDA, with the original layer for detached pieces.
+4. `global_.run()`: union of matched layers, `topo_detect` (then `topo_clean` on defects),
+   `schema_fill` and `package_polygons`, then `admin{1..4}` parquet and PMTiles.
 5. `write_top_catalog()`: root `catalog.json`.
 6. `push_all()`: `aws s3 sync` of all four trees to `SOURCECOOP_REMOTE`, on every run.
    Any AWS credential source publishes. A failed sync, including missing credentials, stops
@@ -118,9 +119,9 @@ Every stage writes parquet through `extended/_write.py::write_gpq2()`: GeoParque
 work_dir/
   original/   native ArcGIS mirror, via portolan_cli's extract_arcgis_catalog()
     <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet
-  extended/   this repo's edge-extension (topo_tools.edge_extend/dissolve)
+  extended/   topo_tools.edge_extend, then package_polygons
     <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet   (same layout as original/)
-  matched/    edge-matched to UN Geodata 1:1M via topo_tools.edge_clip
+  matched/    edge-matched to UN Geodata 1:1M via topo_tools.edge_mosaic
     <iso3>/<version>/<iso3>_admin{N}/<iso3>_admin{N}.parquet   (admin0 excluded)
   global/     cross-country composite, no iso3 anywhere in its path
     admin{1..4}/admin{N}.parquet, admin{N}.pmtiles, admin{N}_points.pmtiles
