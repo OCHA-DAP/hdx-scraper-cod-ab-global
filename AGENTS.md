@@ -15,17 +15,16 @@ This rule applies to all stages: download, processing, edge extension, clipping,
 
 ## Overview
 
-This is a Python scraper that downloads Common Operational Datasets - Administrative Boundaries (COD-AB) from OCHA's ArcGIS Enterprise Server (gis.unocha.org) and generates global administrative boundary datasets published to the Humanitarian Data Exchange (HDX).
+This Python pipeline mirrors Common Operational Datasets - Administrative Boundaries (COD-AB)
+from OCHA's ArcGIS Enterprise Server (gis.unocha.org) and publishes them to source.coop and
+the Humanitarian Data Exchange (HDX). It builds three variations for 100+ countries and
+territories:
 
-The pipeline processes administrative boundaries for 100+ countries/territories, performing edge-extension and edge-matching operations to produce three variations:
-
-- **Original**: Unmodified boundaries (may have gaps/overlaps at international borders)
-- **Extended**: Edge-extended boundaries using a custom algorithm (no external dependencies)
-- **Matched**: Edge-matched to UN Geodata 1:1M international boundaries (no gaps/overlaps)
+- **Original**: unmodified boundaries, which may have gaps or overlaps at international borders.
+- **Extended**: edge-extended boundaries (`topo_tools.edge_extend`). Input to Matched. Published to source.coop only.
+- **Matched**: Extended clipped to UN Geodata 1:1M international boundaries, with no gaps or overlaps.
 
 ## Development Commands
-
-### Setup
 
 ```shell
 uv sync
@@ -33,50 +32,41 @@ source .venv/bin/activate
 pre-commit install
 ```
 
-### Running the Pipeline
-
 ```shell
-# Run the full pipeline
-python run.py
-
-# Or use the module directly
-python -m hdx.scraper.cod_ab_global
-
-# Using taskipy
-uv run task app
-```
-
-### Code Quality
-
-```shell
-# Format and lint code (runs ruff format -> ruff check -> ruff format)
-uv run task ruff
-
-# Pre-commit will run automatically on commit, or manually:
-pre-commit run --all-files
-```
-
-### Exporting Requirements
-
-```shell
-# Export both production and dev requirements
-uv run task export
-
-# This generates requirements.txt and requirements-dev.txt
-```
-
-### Docker
-
-```shell
-# Build the image
+uv run task app                      # runs python run.py
+python run.py                        # re-launches under uv outside a venv
+python -m hdx.scraper.cod_ab_global  # same pipeline
+uv run task ruff                     # ruff check && ruff format
 docker build -t hdx-scraper-cod-ab-global .
 ```
 
-## Configuration Requirements
+Every run command calls `_pipeline.py::main()`, which takes no arguments or flags. A run is
+the update: it re-checks ArcGIS and recomputes only what changed (see Change detection).
+Stages, in order:
 
-### Required Files in Home Directory
+1. `original.run()`: ArcGIS token, service discovery, extraction of changed services.
+2. `extended.run()`: `config.where_filter`, then edge extension and dissolve.
+3. `matched.run()`: clip to UN BNDA.
+4. `global_.run()`: cross-country `admin{1..4}` parquet and PMTiles.
+5. `write_top_catalog()`: root `catalog.json`.
+6. `push_all()`: `aws s3 sync` of all four trees to `SOURCECOOP_REMOTE`, on every run.
+   Any AWS credential source publishes. A failed sync, including missing credentials, stops
+   the run before the HDX export. `aws s3 sync` skips files whose size and mtime are
+   unchanged. The root `catalog.json` is uploaded every run.
+7. `hdx_export.run()`: builds GDBs and CSVs for `original` and `matched` into
+   `HDX_EXPORT_OUTPUT_DIR`. With `HDX_EXPORT_PUSH=true` it pushes each dataset whose data
+   fingerprint differs from `../.hdx_export/push_state.json` for the configured site.
+   Changes to dataset metadata code (notes, tags, `cod_level`) alone do not trigger a push.
 
-1. `.hdx_configuration.yaml` - HDX API credentials:
+Set `PORTOLAN_WORK_DIR=./portolan` in `.env` for a persistent, gitignored work directory.
+Without it a temp dir is used and everything is rebuilt. `.bnda/`, `.hdx_export/` and
+`hdx_export_build/` sit beside the work directory.
+
+## Configuration
+
+`config.py` loads `.env` with `load_dotenv(override=True)`, so `.env` values win over the shell.
+
+HDX push needs `~/.hdx_configuration.yaml`:
 
 ```yaml
 hdx_key: "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
@@ -84,150 +74,43 @@ hdx_read_only: false
 hdx_site: prod
 ```
 
-1. `.useragents.yaml` - User agent configuration (must contain `hdx-scraper-cod-ab-global` key)
+and `~/.useragents.yaml` with a `hdx-scraper-cod-global` key.
 
-### Environment Variables
+| Variable | Default | Used by |
+| --- | --- | --- |
+| `ARCGIS_USERNAME` / `ARCGIS_PASSWORD` | (none) | Token for `cod_ab_*` services, which reject anonymous requests |
+| `ARCGIS_SERVER` | `https://gis.unocha.org` | Services are read from `/server/rest/services/Hosted` |
+| `ARCGIS_TIMEOUT` | `60` | HTTP timeout (s) for discovery and metadata calls. Token generation uses the httpx default and extraction uses 300 |
+| `ARCGIS_EXPIRATION` | `1440` | Token lifetime (min) |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | (none) | `aws s3 sync` to source.coop |
+| `SOURCECOOP_REMOTE` | `s3://us-west-2.opendata.source.coop/hdx/cod-ab/` | Push target |
+| `PORTOLAN_WORK_DIR` | (temp dir) | Root of the four trees |
+| `PORTOLAN_WORKERS` | `min(cpu_count, 8)` | Parallel `portolan` workers |
+| `ISO3_INCLUDE` / `ISO3_EXCLUDE` | (none) | HDX export only. Comma-separated ISO-3 codes. `ISO3_EXCLUDE` also takes version-pinned values. Extraction and source.coop cover every service |
+| `HDX_EXPORT_PUSH` | `false` | `true` pushes to the `hdx_site` in `~/.hdx_configuration.yaml` |
+| `HDX_EXPORT_OUTPUT_DIR` | `<work dir parent>/hdx_export_build` | HDX build output |
 
-**Required for ArcGIS Access:**
+## Where Filters
 
-- `ARCGIS_USERNAME` - Username for gis.unocha.org authentication
-- `ARCGIS_PASSWORD` - Password for gis.unocha.org authentication
+`config.where_filter` drops features in `extended/_process.py` before edge extension, so it
+affects Extended, Matched and Global but not Original:
 
-**Optional Location Filtering:**
+- Lebanon: `adm1_pcode <> 'Conflict'`
+- Pakistan: `adm1_pcode not in ('PK1', 'PK3')`
+- Sudan: `adm1_pcode <> 'SD19'`
+- South Sudan: `adm1_pcode <> 'SS00' and adm2_pcode <> 'SS0807'`
 
-- `ISO3_INCLUDE` - Comma-separated ISO-3 codes to include (e.g., "AFG,BFA,CAF")
-- `ISO3_EXCLUDE` - Comma-separated ISO-3 codes to exclude
-- Both accept versioned values (e.g., "AFG_v01" to pin to a specific version)
+## Testing and CI/CD
 
-**Version Control:**
-
-- `RUN_VERSION` - Controls output: "LATEST" (default), "HISTORIC", or "LATEST,HISTORIC"
-  - LATEST: Only the most recent version per country
-  - HISTORIC: All versions except the latest
-  - LATEST,HISTORIC: Both outputs
-
-**Other Configuration:**
-
-- `ARCGIS_SERVER` - Default: "<https://gis.unocha.org>"
-- `ARCGIS_FOLDER` - Default: "Hosted"
-- `ARCGIS_LAYER_REGEX` - Default: `r"^[a-z]{3}_admin\d$"`
-- `ATTEMPT` - Retry attempts for downloads (default: 5)
-- `WAIT` - Wait seconds between retries (default: 10)
-- `TIMEOUT` - HTTP timeout in seconds (default: 60)
-- `TIMEOUT_DOWNLOAD` - Download timeout (default: 600)
-- `EXPIRATION` - Token expiration in minutes (default: 1440)
-
-## Architecture
-
-### High-Level Pipeline Flow
-
-The pipeline is orchestrated in `__main__.py` and executes these stages sequentially:
-
-1. **Authentication** (`utils.generate_token()`): Generates ArcGIS Enterprise token
-2. **Download Phase**:
-   - `download_admin0()`: Downloads admin0 boundaries from FIS server
-   - `download_metadata()`: Fetches metadata table from ArcGIS
-   - `download_boundaries()`: Downloads all country layers as ESRIJSON → GeoParquet
-3. **Process Phase**:
-   - `create_pcodes()`: Generates P-codes dataset (latest version only)
-   - `create_boundaries()`: Consolidates country layers into global File Geodatabase
-   - `preprocess_extended()`: Prepares geometries for edge extension
-   - `edge_extender()`: Custom edge-extension algorithm (see below)
-   - `postprocess_extended()`: Post-processes extended geometries
-   - `create_matched()`: Edge-matches to UN Geodata 1:1M boundaries
-4. **Dataset Creation** (`dataset/`): Uploads resources to HDX with metadata
-
-### Module Structure
-
-```
-src/hdx/scraper/cod_ab_global/
-├── __main__.py           # Pipeline orchestration
-├── config.py             # Environment variables, global config
-├── utils.py              # HTTP client, token generation, utilities
-├── download/             # Data fetching from ArcGIS
-│   ├── admin0.py         # Admin0 from FIS server
-│   ├── metadata/         # Metadata table download
-│   └── boundaries/       # Country layer downloads
-│       ├── __init__.py   # Service/layer discovery
-│       ├── feature.py    # ESRIJSON → GeoParquet conversion
-│       └── refactor.py   # Column name standardization
-├── process/              # Data transformation
-│   ├── boundaries.py     # Global File Geodatabase creation
-│   ├── pcodes.py         # P-codes dataset generation
-│   └── matched.py        # Edge-matching to UN boundaries
-└── dataset/              # HDX dataset creation
-    ├── boundaries.py     # Main boundaries dataset
-    └── pcodes.py         # P-codes dataset
-```
-
-### Data Flow
-
-```
-ArcGIS Server (ESRIJSON)
-  → download/ → GeoParquet (country/original/)
-  → process/boundaries.py → File Geodatabase (global/original)
-  → topo_tools.extend() → Parquet (country/extended/)
-  → process/boundaries.py → File Geodatabase (global/extended)
-  → process/matched.py → Parquet (country/matched/)
-  → process/boundaries.py → File Geodatabase (global/matched)
-  → dataset/boundaries.py → HDX Resource Upload
-```
-
-### Key Technical Details
-
-- **GDAL Integration**: Uses `gdal vector` CLI commands for format conversions, field type manipulation, and File Geodatabase creation
-- **Retry Logic**: `tenacity` library with configurable attempts/waits for ArcGIS API calls
-- **Parquet Everywhere**: Internal format is GeoParquet 2.0, labelled `OGC:CRS84`, rows sorted by P-code then name (`extended/_write.py::write_gpq2()`, ZSTD level 22)
-- **HTTP/2**: Uses `httpx[http2]` for faster parallel downloads
-- **Version Handling**: Metadata table drives which country versions to process
-- **Where Filters**: Country-specific SQL filters in `config.where_filter` to exclude problematic features
-
-### Important Constants
-
-- `UPDATED_BY_SCRIPT = "HDX Scraper: COD-AB Global"` - Used for HDX dataset provenance
-- `OBJECTID = "esriFieldTypeOID"` - ESRI object ID field type identifier
-- P-codes are marked with `"p_coded": "True"` in HDX resources
-
-### Testing & CI/CD
-
-- No automated tests currently (no `tests/` directory)
-- Pre-commit runs uv sync/export and ruff formatting/linting
-- CI/CD publishes Docker images to AWS ECR on releases (`publish.yaml`)
-
-### Where Filters
-
-Some countries require SQL filters to exclude invalid/conflict geometries (see `config.where_filter`):
-
-- No automated tests currently (no `tests/` directory)
-- Pre-commit runs uv sync/export and ruff formatting/linting
-- CI/CD publishes Docker images to AWS ECR on releases (`publish.yaml`)
-
-### Debugging Notes
-
-The `__main__.py` file contains `if False:` blocks that can be toggled to skip/include certain pipeline stages during development. The default state runs only the edge extension and matching phases (lines 36-44 and 52-53 are disabled).
-
-### Where Filters
-
-Some countries require SQL filters to exclude invalid/conflict geometries (see `config.where_filter`):
-
-- Lebanon: Excludes conflict zones
-- Pakistan: Excludes specific admin1 codes (PK1, PK3)
-- Sudan: Excludes SD19
-- South Sudan: Excludes SS00 and SS0807
-
-These filters are applied during the download phase in `download/boundaries/feature.py`.
+- No `tests/` directory. `uv run task test` exists but has nothing to run.
+- Pre-commit runs `uv-sync`, `ruff-check` and `ruff-format`.
+- `publish.yaml` publishes the Docker image to AWS ECR on releases.
 
 ## Portolan Mirror
 
-Mirrors COD-AB ArcGIS services to source.coop as four independent sibling portolan
-catalogs under one work directory. Run with:
-
-```shell
-uv run python -m hdx.scraper.cod_ab_global
-```
-
-Set `PORTOLAN_WORK_DIR=./portolan` in `.env` to use a persistent local work directory
-(gitignored). Without it, a temp dir is used and everything is rebuilt from scratch.
+The source.coop side is four independent sibling portolan catalogs under one work directory.
+Every stage writes parquet through `extended/_write.py::write_gpq2()`: GeoParquet 2.0,
+`OGC:CRS84`, rows sorted by P-code then name, ZSTD level 22.
 
 ### Four sibling trees
 
@@ -279,7 +162,7 @@ Each tree fingerprints only its own immediate upstream input, independently:
   A rebuild is also forced if the expected output parquets or PMTiles (including
   `admin{N}_points.pmtiles`) are missing.
 
-This means a no-op re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
+A re-run against an unchanged ArcGIS source skips ArcGIS re-extraction
 and all downstream `topo_tools` recomputation for every stage.
 
 ### STAC catalog structure
