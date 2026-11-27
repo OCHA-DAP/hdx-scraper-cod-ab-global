@@ -56,6 +56,8 @@ The pipeline needs three sets of credentials:
 
 or equivalently `python -m hdx.scraper.cod_ab_global`.
 
+`uv run task push` syncs an already built `PORTOLAN_WORK_DIR` to source.coop without rebuilding.
+
 Pushing to HDX is opt-in: set `HDX_EXPORT_PUSH=true` in addition to the HDX credentials above,
 otherwise the HDX export stage builds locally without writing anything. Every run syncs all
 four trees to source.coop with `aws s3 sync`, using any AWS credential source. A failed sync,

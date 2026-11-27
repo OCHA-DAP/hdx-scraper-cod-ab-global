@@ -51,5 +51,6 @@ lint.ignore = ["COM812", "CPY001", "D203", "D213", "FIX002", "S603", "S607", "S6
 [tool.taskipy.tasks]
 # uv run task app
 app = "python run.py"
+push = "python -c 'from hdx.scraper.cod_ab_global._pipeline import push; push()'"
 ruff = "ruff check && ruff format"
 test = "pytest --rootdir=. --junitxml=test-results.xml --cov --no-cov-on-fail --cov-report=lcov --cov-report=term-missing"

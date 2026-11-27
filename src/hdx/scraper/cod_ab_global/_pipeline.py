@@ -27,6 +27,19 @@ logger = logging.getLogger(__name__)
 TREE_NAMES = ("original", "extended", "matched", "global")
 
 
+def push() -> None:
+    """Push the existing work directory to source.coop without rebuilding."""
+    work_dir = Path(PORTOLAN_WORK_DIR or "")
+    trees = {name: work_dir / name for name in TREE_NAMES}
+    # The sync deletes remote orphans, so a missing tree would wipe the remote copy.
+    missing = [d for d in trees.values() if not (d / "catalog.json").is_file()]
+    if not PORTOLAN_WORK_DIR or missing:
+        msg = f"PORTOLAN_WORK_DIR must hold all four built trees, missing: {missing}"
+        raise SystemExit(msg)
+    write_top_catalog(work_dir, list(TREE_NAMES))
+    push_all(trees, work_dir)
+
+
 def main() -> None:
     """Run the full pipeline: mirror, extend, match, stitch, push, HDX export."""
     work_dir = (

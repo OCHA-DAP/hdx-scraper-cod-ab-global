@@ -36,12 +36,15 @@ pre-commit install
 uv run task app                      # runs python run.py
 python run.py                        # re-launches under uv outside a venv
 python -m hdx.scraper.cod_ab_global  # same pipeline
+uv run task push                     # stages 5 and 6 only, no rebuild
 uv run task ruff                     # ruff check && ruff format
 docker build -t hdx-scraper-cod-ab-global .
 ```
 
-Every run command calls `_pipeline.py::main()`, which takes no arguments or flags. A run is
-the update: it re-checks ArcGIS and recomputes only what changed (see Change detection).
+Every run command except `task push` calls `_pipeline.py::main()`, which takes no arguments
+or flags. `task push` calls `_pipeline.py::push()`, which needs `PORTOLAN_WORK_DIR` with all
+four trees built. A run is the update: it re-checks ArcGIS and recomputes only what changed
+(see Change detection).
 Stages, in order:
 
 1. `original.run()`: ArcGIS token, service discovery, extraction of changed services.
