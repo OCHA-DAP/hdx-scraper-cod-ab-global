@@ -6,10 +6,10 @@ from pathlib import Path
 
 import duckdb
 from hdx.location.country import Country
-from topo_tools import dissolve
+from topo_tools import package_polygons
 
 from hdx.scraper.cod_ab_global.catalog import ADM_SUFFIXES
-from hdx.scraper.cod_ab_global.config import ADMIN_SCHEMA_PATH
+from hdx.scraper.cod_ab_global.config import ADMIN_CODE_FIELD, ADMIN_NAME_FIELD
 
 from ._write import write_gpq2
 
@@ -77,23 +77,23 @@ def dissolve_all_levels(
             out_dir.mkdir(parents=True, exist_ok=True)
             write_gpq2(current_path, out_dir / f"{layer_name}.parquet")
 
+            package_polygons(
+                current_path,
+                str(tmp_path / f"{iso3}_pkg_admin{{n}}.parquet"),
+                str(tmp_path / f"{iso3}_pkg_admin{{n}}_issues.parquet"),
+                name_field=ADMIN_NAME_FIELD,
+                code_field=ADMIN_CODE_FIELD,
+            )
             for level in range(admin_level_full - 1, -1, -1):
-                pcode_col = f"adm{level}_pcode"
-                if pcode_col not in keep_cols:
+                if f"adm{level}_pcode" not in keep_cols:
                     continue
-                layer_name = f"{iso3}_admin{level}"
-                out_dir = extended_version_dir / layer_name
-                out_dir.mkdir(parents=True, exist_ok=True)
-                dissolved_path = tmp_path / f"{layer_name}_raw.parquet"
-                issues_path = tmp_path / f"{layer_name}_issues.parquet"
-                dissolve(
-                    current_path,
-                    dissolved_path,
-                    issues_path,
-                    group_by=[pcode_col],
-                    target_schema_path=ADMIN_SCHEMA_PATH,
-                    overwrite=True,
-                )
+                dissolved_path = tmp_path / f"{iso3}_pkg_admin{level}.parquet"
+                issues_path = tmp_path / f"{iso3}_pkg_admin{level}_issues.parquet"
+                if not dissolved_path.exists():
+                    logger.warning(
+                        "No level %d detected for %s, skipped", level, iso3_upper
+                    )
+                    continue
                 if issues_path.exists():
                     logger.warning(
                         "Dissolve to level %d for %s reported topology issues: %s",
@@ -101,7 +101,9 @@ def dissolve_all_levels(
                         iso3_upper,
                         issues_path,
                     )
+                layer_name = f"{iso3}_admin{level}"
+                out_dir = extended_version_dir / layer_name
+                out_dir.mkdir(parents=True, exist_ok=True)
                 write_gpq2(dissolved_path, out_dir / f"{layer_name}.parquet")
-                current_path = dissolved_path
         finally:
             con.close()

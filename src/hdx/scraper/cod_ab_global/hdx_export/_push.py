@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 _STAGES = ("original", "matched")
 
 
-def push(  # noqa: PLR0913
+def push(  # noqa: PLR0913, PLR0917
     work_dir: Path,
     output_dir: Path,
     site_url: str,

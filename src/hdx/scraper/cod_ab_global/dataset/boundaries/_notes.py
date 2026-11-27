@@ -21,8 +21,10 @@ def get_notes(admin_count: int, run_version: str) -> str:
         )
         related = [
             f"{_COUNTRY}: for boundaries of a single country or territory.",
-            f"{_PCODES}: P-codes and names as CSV, for data collection tools "
-            "such as ODK / Kobo.",
+            (
+                f"{_PCODES}: P-codes and names as CSV, for data collection tools "
+                "such as ODK / Kobo."
+            ),
             f"{_HISTORIC}: past versions of boundaries for each country or territory.",
         ]
     else:

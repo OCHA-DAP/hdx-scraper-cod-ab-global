@@ -73,5 +73,6 @@ admin_level_full_overrides = {
     "QAT": 3,
 }
 
-ADMIN_SCHEMA_PATH = Path(__file__).parent / "config" / "admin_schema.yaml"
+ADMIN_NAME_FIELD = "adm{n}_name"
+ADMIN_CODE_FIELD = "adm{n}_pcode"
 AWS_CONFIG_PATH = Path(__file__).parent / "config" / "aws.config"

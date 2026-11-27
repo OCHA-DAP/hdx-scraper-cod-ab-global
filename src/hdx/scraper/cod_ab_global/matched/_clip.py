@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 import duckdb
-from topo_tools import edge_clip as topo_clip
+from topo_tools import edge_mosaic
 
 from hdx.scraper.cod_ab_global.catalog import admin_layer_pattern, admin_layers
 from hdx.scraper.cod_ab_global.extended import _write_gpq2
@@ -14,9 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 def _clip_to_bnda(
-    input_path: Path, output_path: Path, bnda_path: Path, iso3: str
+    input_path: Path,
+    original_path: Path,
+    output_path: Path,
+    bnda_path: Path,
+    iso3: str,
 ) -> None:
-    """Clip one extended admin layer to the UN international boundary."""
+    """Mosaic one extended admin layer into the UN international boundary."""
     iso3_upper = iso3.upper()
     con = duckdb.connect()
     try:
@@ -32,15 +36,22 @@ def _clip_to_bnda(
             """)
 
             tmp_out = tmp_path / "clipped.parquet"
-            topo_clip(input_path, parent_path, tmp_out, overwrite=True)
+            edge_mosaic(
+                input_path,
+                parent_path,
+                tmp_out,
+                tmp_path / "issues.parquet",
+                original_paths=original_path if original_path.exists() else None,
+            )
             _write_gpq2(tmp_out, output_path)
     finally:
         con.close()
 
 
-def process_service(
+def process_service(  # noqa: PLR0913, PLR0917
     iso3: str,
     version: str,
+    original_version_dir: Path,
     extended_version_dir: Path,
     matched_version_dir: Path,
     bnda_path: Path,
@@ -70,7 +81,8 @@ def process_service(
             out_dir = matched_version_dir / layer_name
             out_dir.mkdir(parents=True, exist_ok=True)
             output_path = out_dir / f"{layer_name}.parquet"
-            _clip_to_bnda(input_path, output_path, bnda_path, iso3)
+            original_path = original_version_dir / layer_name / f"{layer_name}.parquet"
+            _clip_to_bnda(input_path, original_path, output_path, bnda_path, iso3)
     except Exception:
         logger.exception("Matched clipping failed for %s/%s", iso3, version)
         return False

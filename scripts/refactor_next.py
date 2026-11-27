@@ -99,8 +99,10 @@ def refactor_level(
         "s.lang1",
         "s.lang2",
         "s.lang3",
-        "ST_Area(ST_Transform(s.geometry, 'EPSG:4326', 'EPSG:6933', always_xy := true))"
-        " / 1e6 AS area_sqkm",
+        (
+            "ST_Area(ST_Transform(s.geometry, 'EPSG:4326', 'EPSG:6933', "
+            "always_xy := true)) / 1e6 AS area_sqkm"
+        ),
         f"least(s.adm_lvl, {level})::INTEGER AS level",
         "s.valid_to IS NULL AS latest",
         "s.geometry",

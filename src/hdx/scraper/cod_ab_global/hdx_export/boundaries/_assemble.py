@@ -52,7 +52,7 @@ def _filled_selects(
     return selects
 
 
-def assemble_admin_level(  # noqa: PLR0913
+def assemble_admin_level(  # noqa: PLR0913, PLR0917
     stage: str,
     admin_level: int,
     version_dirs: list[tuple[str, Path]],

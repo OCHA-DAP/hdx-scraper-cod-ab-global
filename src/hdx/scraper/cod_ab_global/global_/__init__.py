@@ -11,7 +11,7 @@ import duckdb
 
 from hdx.scraper.cod_ab_global.catalog import read_json_state, write_json_state
 
-from ._assemble import assemble_and_clean, dissolve_level
+from ._assemble import assemble_and_clean, dissolve_levels
 from ._catalog import build_catalog
 from ._scan import get_service_meta, latest_versioned_per_iso3
 from ._state import combined_fingerprint, parquets_exist, pmtiles_exist
@@ -28,13 +28,9 @@ def _build_parquets(services_meta: list[dict], global_dir: Path) -> None:
     try:
         con.load_extension("spatial")
         assemble_and_clean(services_meta, con, admin4_path)
-        for level in (3, 2, 1):
-            out_dir = global_dir / f"admin{level}"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / f"admin{level}.parquet"
-            dissolve_level(con, admin4_path, out_path, level)
     finally:
         con.close()
+    dissolve_levels(admin4_path, global_dir, (1, 2, 3))
 
 
 def run(matched_dir: Path, global_dir: Path) -> None:
